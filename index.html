@@ -2,44 +2,32 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RDR Radar Ops Panel</title>
-  <meta name="description" content="Radar-first Yodeck panel for South Florida.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#06101a">
+  <meta name="color-scheme" content="dark">
+  <title>RDR South Florida Radar</title>
+  <meta name="description" content="Single-screen high-resolution South Florida radar for Yodeck.">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <main id="shell">
-    <section id="panel" aria-label="South Florida radar panel">
-      <div id="stage"></div>
-      <div id="boot" class="boot hidden">Loading radar views…</div>
-      <div id="statusbar" class="statusbar">
-        <span id="statusView">RADAR</span>
-        <span class="dot"></span>
-        <span id="statusProduct">KAMX</span>
-        <span class="dot"></span>
-        <span id="statusDetail">LIVE</span>
-        <span class="spacer"></span>
-        <span id="statusTime">--:--:--</span>
+    <section id="panel" data-ready="false" data-local-radar="loading" data-regional-radar="loading" aria-label="South Florida radar">
+      <div id="localMap" class="map local-map">
+        <div id="localBase" class="tile-layer"></div>
+        <div id="localRadar" class="image-layer radar-stack"></div>
+        <div id="localWarnings" class="image-layer warnings-layer"></div>
+        <div class="map-tone"></div>
+        <div class="range-ring ring-10"><span>10 MI</span></div>
+        <div class="range-ring ring-25"><span>25 MI</span></div>
+        <div class="home-marker" aria-label="Home location"><i class="home-ring"></i><i class="home-cross h"></i><i class="home-cross v"></i><b></b><span>HOME</span></div>
+        <div class="radar-legend" aria-label="Radar reflectivity legend"><span>LIGHT</span><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><i class="l5"></i><i class="l6"></i><span>HEAVY</span></div>
       </div>
+      <aside id="regional" class="regional" aria-label="Florida Gulf Cuba regional radar"><div id="regionalBase" class="tile-layer"></div><div id="regionalConus" class="image-layer"></div><div id="regionalCarib" class="image-layer"></div><div id="regionalWarnings" class="image-layer warnings-layer"></div><div class="regional-tone"></div><div class="regional-home"><i></i></div><div class="regional-label">FL · GULF · CUBA</div></aside>
+      <div class="signal-panel"><div class="signal-row"><span>HOME</span><b id="homeSignal">RADAR</b></div><div class="signal-row"><span>BROWARD</span><b>25 MI</b></div><div class="signal-row"><span>REGION</span><b>GULF → CUBA</b></div></div>
+      <footer class="statusbar"><span class="live-dot"></span><span id="statusMode">HD REFLECTIVITY</span><span class="sep">·</span><span id="statusSource">KAMX + MRMS</span><span class="sep">·</span><span id="statusAlerts">ALERTS ON</span><span class="spacer"></span><time id="statusTime">--:--</time></footer>
+      <div id="boot" class="boot"><strong>RADAR</strong><span>ACQUIRING HIGH-RESOLUTION DATA</span></div>
     </section>
   </main>
-
-  <template id="view-template">
-    <section class="view">
-      <div class="media-wrap">
-        <img class="media" alt="">
-        <div class="scrim"></div>
-        <div class="labelchip hidden"></div>
-        <div class="reticle hidden" aria-hidden="true">
-          <div class="ring"></div>
-          <div class="crosshair h"></div>
-          <div class="crosshair v"></div>
-          <div class="core"></div>
-        </div>
-      </div>
-    </section>
-  </template>
-
   <script src="app.js"></script>
 </body>
 </html>
