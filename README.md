@@ -6,8 +6,8 @@ A radar-only **456 x 257** Yodeck instrument centered on `26.06197904865014, -80
 
 RDR is one radar engine with four full-canvas geographic scales. It does not use cards, picture-in-picture, range-ring clutter, or wrapped reference graphics.
 
-1. **HOME**: approximately neighborhood / immediate-area scale, using KAMX super-resolution reflectivity.
-2. **BROWARD / MIAMI**: South Florida metro scale, using KAMX super-resolution reflectivity.
+1. **HOME**: approximately neighborhood / immediate-area scale, using MRMS quality-controlled base reflectivity.
+2. **BROWARD / MIAMI**: South Florida metro scale, using MRMS quality-controlled base reflectivity.
 3. **FLORIDA**: peninsula-scale MRMS quality-controlled base reflectivity.
 4. **GULF / CUBA**: regional MRMS coverage across the Gulf, Florida, Cuba, the Keys and the Bahamas.
 

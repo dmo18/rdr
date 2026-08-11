@@ -6,8 +6,8 @@ const CFG = {
   refreshMs: 5 * 60 * 1000,
   frameMs: 850,
   views: [
-    { id:'home', name:'HOME', tag:'HOME · 20 MI', center:{lat:26.06197904865014,lon:-80.18787062578414}, zoom:10, duration:12000, sources:['kamx'], labels:['davie','hollywood','dania','fortlauderdale','hallandale','miramar'] },
-    { id:'metro', name:'BROWARD / MIAMI', tag:'METRO · 90 MI', center:{lat:25.92,lon:-80.35}, zoom:8, duration:10000, sources:['kamx'], labels:['fortlauderdale','miami','bocaraton','westpalm','homestead','keylargo','hollywood'] },
+    { id:'home', name:'HOME', tag:'HOME · 20 MI', center:{lat:26.06197904865014,lon:-80.18787062578414}, zoom:10, duration:12000, sources:['conus'], labels:['davie','hollywood','dania','fortlauderdale','hallandale','miramar'] },
+    { id:'metro', name:'BROWARD / MIAMI', tag:'METRO · 90 MI', center:{lat:25.92,lon:-80.35}, zoom:8, duration:10000, sources:['conus'], labels:['fortlauderdale','miami','bocaraton','westpalm','homestead','keylargo','hollywood'] },
     { id:'florida', name:'FLORIDA', tag:'FLORIDA', center:{lat:27.05,lon:-81.45}, zoom:6, duration:9000, sources:['conus'], labels:['miami','keywest','naples','fortmyers','tampa','orlando','jacksonville','westpalm'] },
     { id:'regional', name:'GULF / CUBA', tag:'GULF · CUBA · BAHAMAS', center:{lat:24.8,lon:-83.6}, zoom:5, duration:10000, sources:['conus','carib'], labels:['florida','cuba','havana','bahamas','yucatan','keywest','miami','gulf'] }
   ],
