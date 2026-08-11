@@ -1,0 +1,48 @@
+.map-vignette{position:absolute;z-index:40;inset:0;pointer-events:none;background:linear-gradient(#06101ad6,transparent 26%,transparent 72%,#06101ac7),radial-gradient(circle at 50% 50%,transparent 44%,#02070bc9 100%)}
+.map-head{position:absolute;z-index:55;top:14px;left:17px;right:17px;display:flex;justify-content:space-between;align-items:flex-start;text-shadow:0 2px 8px #000}
+.map-head strong{display:block;margin-top:3px;font-size:17px;letter-spacing:.07em}
+.map-head>span{font:850 8px ui-monospace,SFMono-Regular,Menlo,monospace;color:#b8c6d4;letter-spacing:.07em}
+.location-reticle{position:absolute;z-index:58;left:50%;top:51%;width:24px;height:24px;transform:translate(-50%,-50%);border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 3px #0009}
+.location-reticle:before,.location-reticle:after{content:"";position:absolute;background:#fff}
+.location-reticle:before{left:9px;top:-10px;width:2px;height:40px}
+.location-reticle:after{left:-10px;top:9px;width:40px;height:2px}
+.location-reticle i{position:absolute;inset:5px;background:var(--cyan);border-radius:50%;box-shadow:0 0 14px var(--cyan)}
+.radar-legend{position:absolute;z-index:58;left:17px;bottom:18px;height:27px;display:flex;align-items:center;gap:3px;padding:0 8px;border:1px solid #ffffff30;background:#03070dc9;border-radius:5px}
+.radar-legend span{font-size:6px;font-weight:900;color:#bbc8d3}
+.radar-legend i{width:23px;height:5px;border-radius:1px}
+.radar-legend i:nth-of-type(1){background:#4bbd73}
+.radar-legend i:nth-of-type(2){background:#f4d84b}
+.radar-legend i:nth-of-type(3){background:#ff973b}
+.radar-legend i:nth-of-type(4){background:#f04458}
+.attribution{position:absolute;z-index:58;right:12px;bottom:9px;font-size:5px;color:#9aabba;letter-spacing:.05em}
+.map-fallback{position:absolute;z-index:80;inset:106px 60px 92px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;border:1px solid var(--line2);border-radius:8px;background:#07101bea;box-shadow:0 15px 45px #0008}
+.map-fallback strong{font-size:15px;letter-spacing:.04em}
+.map-fallback span{max-width:330px;margin-top:9px;color:var(--muted);font-size:10px;line-height:1.4}
+.hidden{display:none!important}
+
+.hero-copy{padding:31px 27px 0}
+.hero-copy>span{font-size:8px;color:var(--muted);font-weight:900;letter-spacing:.12em}
+.hero-copy strong{display:block;margin-top:8px;font-size:57px;line-height:.92;font-weight:950;letter-spacing:-.05em}
+.hero-copy p{margin:13px 0 0;color:#c0ccd8;font-size:13px;font-weight:780}
+.screen#screen-rain>.screen-kicker{padding:28px 27px 0}
+.timeline{position:absolute;left:22px;right:22px;bottom:24px;display:grid;gap:5px}
+.timeline.five{grid-template-columns:repeat(5,1fr)}
+.timeline.six{grid-template-columns:repeat(6,1fr)}
+.timeline-cell{height:93px;border:1px solid var(--line);border-radius:6px;background:#0b1522;padding:10px 9px;display:flex;flex-direction:column;justify-content:space-between}
+.timeline-cell.current{border-color:#39d2ff60;background:#39d2ff10}
+.timeline-cell span{font-size:7px;color:var(--muted);font-weight:900}
+.timeline-cell strong{font-size:13px}
+.timeline-cell .mini-bar{height:5px;border-radius:3px;background:#182536;overflow:hidden}
+.timeline-cell .mini-bar i{display:block;height:100%;background:var(--cyan);min-width:2px}
+.timeline.compact{position:relative;left:auto;right:auto;bottom:auto;margin:14px 21px 0}
+.timeline.compact .timeline-cell{height:72px;padding:8px 6px;text-align:center}
+.screen-title-row{height:64px;padding:20px 22px 0;display:flex;align-items:center;justify-content:space-between}
+.screen-title-row>strong{font-size:12px;letter-spacing:.04em}
+.hour-grid{margin:3px 17px 0;height:221px;display:grid;grid-template-columns:repeat(6,1fr);border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.hour-card{display:flex;flex-direction:column;align-items:center;justify-content:space-around;padding:11px 4px;border-right:1px solid var(--line);background:#0a1420}
+.hour-card:last-child{border:0}
+.hour-card.now{background:#39d2ff0e}
+.hour-card .time{font-size:7px;color:var(--muted);font-weight:900}
+.hour-card .icon{font-size:25px;color:var(--yellow)}
+.hour-card strong{font-size:25px}
+.hour-card .pop{font-size:9px;font-weight:900;color:var(--cyan)}
