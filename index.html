@@ -2,43 +2,44 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#020509">
-  <meta name="color-scheme" content="dark">
-  <meta name="description" content="456 x 257 South Florida NEXRAD radar panel for Yodeck.">
-  <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https://radar.weather.gov data:; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
-  <title>RDR South Florida Radar</title>
-  <link rel="stylesheet" href="radar.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RDR Radar Ops Panel</title>
+  <meta name="description" content="Radar-first Yodeck panel for South Florida.">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main id="radarApp" aria-label="South Florida radar">
-    <div class="radar-stage">
-      <img id="radarImage" class="radar-image" alt="Animated Miami KAMX NEXRAD base reflectivity radar" referrerpolicy="no-referrer">
-      <div class="scanlines" aria-hidden="true"></div>
-      <div class="edge-vignette" aria-hidden="true"></div>
-
-      <div class="target" aria-label="Configured location 26.061979, -80.187871">
-        <span class="target-ring"></span>
-        <span class="target-dot"></span>
+  <main id="shell">
+    <section id="panel" aria-label="South Florida radar panel">
+      <div id="stage"></div>
+      <div id="boot" class="boot hidden">Loading radar views…</div>
+      <div id="statusbar" class="statusbar">
+        <span id="statusView">RADAR</span>
+        <span class="dot"></span>
+        <span id="statusProduct">KAMX</span>
+        <span class="dot"></span>
+        <span id="statusDetail">LIVE</span>
+        <span class="spacer"></span>
+        <span id="statusTime">--:--:--</span>
       </div>
-
-      <div id="sourceFailure" class="source-failure hidden">
-        <strong>RADAR FEED UNAVAILABLE</strong>
-        <span>RETRYING NOAA KAMX</span>
-      </div>
-
-      <div class="telemetry">
-        <span id="liveState" class="live-state"><i></i>LIVE</span>
-        <span class="divider"></span>
-        <span>KAMX</span>
-        <span class="divider"></span>
-        <span>0.5° REF</span>
-        <span class="telemetry-spacer"></span>
-        <span id="scanTime">--:--:--</span>
-      </div>
-    </div>
+    </section>
   </main>
-  <script src="radar.js"></script>
+
+  <template id="view-template">
+    <section class="view">
+      <div class="media-wrap">
+        <img class="media" alt="">
+        <div class="scrim"></div>
+        <div class="labelchip hidden"></div>
+        <div class="reticle hidden" aria-hidden="true">
+          <div class="ring"></div>
+          <div class="crosshair h"></div>
+          <div class="crosshair v"></div>
+          <div class="core"></div>
+        </div>
+      </div>
+    </section>
+  </template>
+
+  <script src="app.js"></script>
 </body>
 </html>
