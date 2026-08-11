@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rdr-weather-display"
+version = "0.1.0"
+description = "Purpose-built 640x480 unattended weather instrument"
+requires-python = ">=3.11"
+dependencies = ["pygame>=2.5.2,<3"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9"]
+
+[project.scripts]
+rdr = "rdr.main:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
