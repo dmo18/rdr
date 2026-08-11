@@ -17,10 +17,10 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020509;col
 #panel{position:relative;width:var(--w);height:var(--h);overflow:hidden;background:#07111b;transform-origin:center center;isolation:isolate}
 .map{position:absolute;inset:0 0 var(--status);overflow:hidden;background:#07111b}
 .tile-layer,.image-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none}
-.tile-layer img{position:absolute;width:256px;height:256px;max-width:none;user-select:none;-webkit-user-drag:none;filter:saturate(.62) brightness(.62) contrast(1.12)}
+.tile-layer img{position:absolute;width:256px;height:256px;max-width:none;user-select:none;-webkit-user-drag:none;filter:grayscale(.82) saturate(.34) brightness(.42) contrast(1.18)}
 .image-layer img{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;opacity:1;transition:opacity .22s linear;user-select:none;-webkit-user-drag:none}
-.radar-stack img{opacity:0;mix-blend-mode:screen;filter:saturate(1.23) contrast(1.12)}
-.radar-stack img.active{opacity:.86}
+.radar-stack img{opacity:0;mix-blend-mode:normal;filter:saturate(1.3) contrast(1.14)}
+.radar-stack img.active{opacity:.84}
 .warnings-layer img{mix-blend-mode:screen;filter:saturate(1.35) brightness(1.14);opacity:.9}
 .map-tone{position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 50%,transparent 42%,rgba(1,4,8,.13) 70%,rgba(1,4,8,.45) 100%),linear-gradient(to bottom,rgba(2,7,12,.04),transparent 68%,rgba(2,7,12,.28));box-shadow:inset 0 0 0 1px rgba(255,255,255,.035)}
 .range-ring{position:absolute;left:50%;top:50%;border:1px solid rgba(164,221,240,.23);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none}
@@ -40,7 +40,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020509;col
 .radar-legend i{width:12px;height:4px;border-radius:1px}
 .radar-legend .l1{background:#2fd36d}.radar-legend .l2{background:#78ea51}.radar-legend .l3{background:#ffe345}.radar-legend .l4{background:#ff9c35}.radar-legend .l5{background:#ff4b4b}.radar-legend .l6{background:#d63fca}
 .regional{position:absolute;z-index:9;right:6px;top:6px;width:145px;height:92px;overflow:hidden;border:1px solid rgba(218,239,250,.36);border-radius:5px;background:#06111a;box-shadow:0 5px 18px rgba(0,0,0,.5)}
-.regional .tile-layer img{filter:saturate(.54) brightness(.56) contrast(1.12)}
+.regional .tile-layer img{filter:grayscale(.85) saturate(.28) brightness(.48) contrast(1.16)}
 .regional .image-layer img{opacity:.82;mix-blend-mode:screen;filter:saturate(1.18) contrast(1.08)}
 .regional .warnings-layer img{opacity:.92}
 .regional-tone{position:absolute;inset:0;pointer-events:none;background:linear-gradient(to bottom,transparent 68%,rgba(0,0,0,.52)),radial-gradient(circle at 50% 40%,transparent 55%,rgba(0,0,0,.26) 100%)}

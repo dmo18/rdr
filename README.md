@@ -8,12 +8,13 @@ Default home point: `26.06197904865014, -80.18787062578414`.
 
 The page is one continuous radar display, not a carousel of external graphics.
 
-- Main map: high-resolution KAMX super-resolution base reflectivity centered on the home point.
+- Main map: clean MRMS quality-controlled base reflectivity centered on the home point so precipitation is visually separated from non-weather clutter.
+- Local fallback: KAMX super-resolution base reflectivity if the MRMS mosaic is unavailable.
 - Recent-frame animation: uses the WMS time dimension when the radar service exposes it.
 - Home context: fixed HOME reticle plus 10-mile and 25-mile range rings.
 - Hazard context: short-fuse NWS warning polygons are drawn on the same radar map.
-- Regional context: an integrated Florida / Gulf / Cuba inset combines CONUS and Caribbean MRMS radar mosaics so upstream rain is visible without leaving the local map.
-- Basemap: darkened OpenStreetMap tiles for city, road, coastline, and place context.
+- Regional context: an integrated Florida / Gulf / Cuba / Bahamas inset combines CONUS and Caribbean MRMS radar mosaics so upstream rain is visible without leaving the local map.
+- Basemap: aggressively darkened OpenStreetMap tiles for city, road, coastline, and place context without overpowering precipitation.
 - Telemetry: one 18-pixel status line with radar mode, source state, warnings, and latest frame time.
 
 ## Public data

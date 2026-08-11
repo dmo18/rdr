@@ -17,14 +17,49 @@
         <div id="localRadar" class="image-layer radar-stack"></div>
         <div id="localWarnings" class="image-layer warnings-layer"></div>
         <div class="map-tone"></div>
+
         <div class="range-ring ring-10"><span>10 MI</span></div>
         <div class="range-ring ring-25"><span>25 MI</span></div>
-        <div class="home-marker" aria-label="Home location"><i class="home-ring"></i><i class="home-cross h"></i><i class="home-cross v"></i><b></b><span>HOME</span></div>
-        <div class="radar-legend" aria-label="Radar reflectivity legend"><span>LIGHT</span><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><i class="l5"></i><i class="l6"></i><span>HEAVY</span></div>
+
+        <div class="home-marker" aria-label="Home location">
+          <i class="home-ring"></i><i class="home-cross h"></i><i class="home-cross v"></i><b></b>
+          <span>HOME</span>
+        </div>
+
+        <div class="radar-legend" aria-label="Radar reflectivity legend">
+          <span>LIGHT</span>
+          <i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><i class="l5"></i><i class="l6"></i>
+          <span>HEAVY</span>
+        </div>
       </div>
-      <aside id="regional" class="regional" aria-label="Florida Gulf Cuba regional radar"><div id="regionalBase" class="tile-layer"></div><div id="regionalConus" class="image-layer"></div><div id="regionalCarib" class="image-layer"></div><div id="regionalWarnings" class="image-layer warnings-layer"></div><div class="regional-tone"></div><div class="regional-home"><i></i></div><div class="regional-label">FL · GULF · CUBA</div></aside>
-      <div class="signal-panel"><div class="signal-row"><span>HOME</span><b id="homeSignal">RADAR</b></div><div class="signal-row"><span>BROWARD</span><b>25 MI</b></div><div class="signal-row"><span>REGION</span><b>GULF → CUBA</b></div></div>
-      <footer class="statusbar"><span class="live-dot"></span><span id="statusMode">HD REFLECTIVITY</span><span class="sep">·</span><span id="statusSource">KAMX + MRMS</span><span class="sep">·</span><span id="statusAlerts">ALERTS ON</span><span class="spacer"></span><time id="statusTime">--:--</time></footer>
+
+      <aside id="regional" class="regional" aria-label="Florida Gulf Cuba regional radar">
+        <div id="regionalBase" class="tile-layer"></div>
+        <div id="regionalConus" class="image-layer"></div>
+        <div id="regionalCarib" class="image-layer"></div>
+        <div id="regionalWarnings" class="image-layer warnings-layer"></div>
+        <div class="regional-tone"></div>
+        <div class="regional-home"><i></i></div>
+        <div class="regional-label">FL · GULF · CUBA</div>
+      </aside>
+
+      <div class="signal-panel">
+        <div class="signal-row"><span>HOME</span><b id="homeSignal">RADAR</b></div>
+        <div class="signal-row"><span>BROWARD</span><b>25 MI</b></div>
+        <div class="signal-row"><span>REGION</span><b>GULF → CUBA</b></div>
+      </div>
+
+      <footer class="statusbar">
+        <span class="live-dot"></span>
+        <span id="statusMode">HD REFLECTIVITY</span>
+        <span class="sep">·</span>
+        <span id="statusSource">MRMS QCD + KAMX</span>
+        <span class="sep">·</span>
+        <span id="statusAlerts">ALERTS ON</span>
+        <span class="spacer"></span>
+        <time id="statusTime">--:--</time>
+      </footer>
+
       <div id="boot" class="boot"><strong>RADAR</strong><span>ACQUIRING HIGH-RESOLUTION DATA</span></div>
     </section>
   </main>
