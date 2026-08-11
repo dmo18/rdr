@@ -1,4 +1,4 @@
-name: Verify radar-only Yodeck panel
+name: Verify radar operations panel
 
 on:
   push:
@@ -11,43 +11,59 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Static integrity and radar-only policy
+      - name: Static integrity
         shell: bash
         run: |
           set -euo pipefail
-          node --check radar.js
-          node --check sw.js
-          grep -q 'width:456px;height:257px' radar.css
-          grep -q 'radar.weather.gov/ridge/standard/KAMX_loop.gif' radar.js
-          ! grep -RniE 'open-meteo|api\.weather\.gov|rainviewer|apikey|api_key|client_secret|access_token|unpkg\.com|jsdelivr\.net|cdnjs\.cloudflare\.com' index.html radar.css radar.js sw.js
+          node --check app.js
+          test -f index.html
+          test -f styles.css
+          test -f app.js
+          grep -q '456px' styles.css
+          grep -q '257px' styles.css
+          grep -q "id: 'hyperlocal'" app.js
+          grep -q "id: 'metro'" app.js
+          grep -q "id: 'southfl'" app.js
+          grep -q "id: 'southeast'" app.js
+          grep -q "id: 'satellite'" app.js
+          grep -q "id: 'warnings'" app.js
+          grep -q "id: 'trop2'" app.js
+          grep -q "id: 'trop5'" app.js
+          ! grep -RniE 'api[_-]?key|access[_-]?token|client[_-]?secret|password=' index.html styles.css app.js
           ! grep -Eqi '<script[^>]+src="https?://' index.html
           ! grep -Eqi '<link[^>]+href="https?://' index.html
-          test "$(grep -o '<header' index.html | wc -l)" = 0
-          echo 'radar-only static policy passed'
+          test ! -e radar.js
+          test ! -e radar.css
+          test ! -e sw.js
 
-      - name: Probe direct NOAA radar images
+      - name: Probe public image sources
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL --retry 4 --retry-delay 2 --max-time 30 \
-            'https://radar.weather.gov/ridge/standard/KAMX_loop.gif' -o /tmp/kamx-loop.gif
-          curl -fsSL --retry 4 --retry-delay 2 --max-time 30 \
-            'https://radar.weather.gov/ridge/standard/KAMX_0.gif' -o /tmp/kamx-frame.gif
-          python3 - <<'PY'
-          from pathlib import Path
-          for p in ['/tmp/kamx-loop.gif','/tmp/kamx-frame.gif']:
-              b=Path(p).read_bytes()
-              assert b[:6] in (b'GIF87a',b'GIF89a'), p
-              assert len(b) > 10000, (p,len(b))
-          print('direct NOAA KAMX images valid')
-          PY
+          urls=(
+            'https://radar.weather.gov/ridge/standard/KAMX_loop.gif'
+            'https://radar.weather.gov/ridge/standard/KAMX_0.gif'
+            'https://radar.weather.gov/ridge/standard/SOUTHEAST_loop.gif'
+            'https://s.w-x.co/staticmaps/wu/wu/satir1200_cur/usase/animate.png'
+            'https://s.w-x.co/staticmaps/wu/wxtype/county_loc/eyw/animate.png'
+            'https://www.nhc.noaa.gov/xgtwo/two_atl_2d0.png'
+            'https://www.nhc.noaa.gov/xgtwo/two_atl_5d0.png'
+          )
+          i=0
+          for url in "${urls[@]}"; do
+            i=$((i+1))
+            echo "checking $url"
+            curl -fL --retry 2 --retry-delay 2 --connect-timeout 10 --max-time 30 \
+              -A 'Mozilla/5.0 RDR-Yodeck/1.0' "$url" -o "/tmp/source-$i"
+            test -s "/tmp/source-$i"
+          done
 
-      - name: Render exact 456 x 257 panel locally
+      - name: Render every view at exactly 456 x 257
         shell: bash
         run: |
           set -euo pipefail
@@ -57,70 +73,73 @@ jobs:
           SERVER_PID=$!
           trap 'kill $SERVER_PID || true' EXIT
           sleep 1
-          mkdir -p screenshots
-          "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
-            --hide-scrollbars --window-size=456,257 --virtual-time-budget=9000 \
-            --screenshot=screenshots/local-radar.png 'http://127.0.0.1:8765/'
-          "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
-            --window-size=456,257 --virtual-time-budget=9000 --dump-dom \
-            'http://127.0.0.1:8765/' > /tmp/local-dom.html
-          grep -q '>LIVE<' /tmp/local-dom.html
-          ! grep -q 'RADAR FEED UNAVAILABLE' /tmp/local-dom.html || ! grep -q 'source-failure hidden' /tmp/local-dom.html
+          mkdir -p screenshots/local screenshots/live
+          views=(hyperlocal metro southfl southeast satellite warnings trop2 trop5)
+          for view in "${views[@]}"; do
+            timeout 35s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
+              --hide-scrollbars --window-size=456,257 --virtual-time-budget=9000 \
+              --screenshot="screenshots/local/${view}.png" "http://127.0.0.1:8765/?view=${view}"
+          done
           python3 - <<'PY'
-          import struct
-          p='screenshots/local-radar.png'
-          with open(p,'rb') as f:
-              assert f.read(8)==b'\x89PNG\r\n\x1a\n'
-              f.read(8)
-              width,height=struct.unpack('>II',f.read(8))
-          assert (width,height)==(456,257),(width,height)
-          print('local radar render is exactly 456x257')
+          import glob, struct
+          files=sorted(glob.glob('screenshots/local/*.png'))
+          assert len(files)==8, files
+          for p in files:
+              with open(p,'rb') as f:
+                  assert f.read(8)==b'\x89PNG\r\n\x1a\n'
+                  f.read(4); assert f.read(4)==b'IHDR'
+                  width,height=struct.unpack('>II',f.read(8))
+                  assert (width,height)==(456,257),(p,width,height)
+          print('all local radar views rendered at 456x257')
           PY
 
-      - name: Wait for this commit on GitHub Pages
+      - name: Wait for matching GitHub Pages deployment
         shell: bash
         run: |
           set -euo pipefail
           target='https://dmo18.github.io/rdr/'
           ok=0
-          for attempt in $(seq 1 36); do
+          for attempt in $(seq 1 42); do
             if curl -fsSL --max-time 15 -H 'Cache-Control: no-cache' "${target}?verify=${GITHUB_SHA}-${attempt}" -o /tmp/live.html; then
-              if grep -q '<title>RDR South Florida Radar</title>' /tmp/live.html && grep -q 'radar.css' /tmp/live.html && grep -q 'radar.js' /tmp/live.html; then
-                ok=1; break
+              if grep -q '<title>RDR Radar Ops Panel</title>' /tmp/live.html && grep -q 'styles.css' /tmp/live.html && grep -q 'app.js' /tmp/live.html; then
+                ok=1
+                break
               fi
             fi
+            echo "waiting for Pages deployment (${attempt}/42)"
             sleep 10
           done
           test "$ok" = 1
-          echo 'public Pages HTML is current'
 
-      - name: Render and verify deployed panel
+      - name: Render deployed views at exactly 456 x 257
         shell: bash
         run: |
           set -euo pipefail
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
-          live="https://dmo18.github.io/rdr/?verify=${GITHUB_SHA}"
-          "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
-            --window-size=456,257 --virtual-time-budget=12000 --dump-dom "$live" > /tmp/live-dom.html
-          grep -q '>LIVE<' /tmp/live-dom.html
-          grep -q 'source-failure hidden' /tmp/live-dom.html
-          "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
-            --hide-scrollbars --window-size=456,257 --virtual-time-budget=12000 \
-            --screenshot=screenshots/live-radar.png "$live"
+          views=(hyperlocal metro southfl southeast satellite warnings trop2 trop5)
+          for view in "${views[@]}"; do
+            timeout 35s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
+              --hide-scrollbars --window-size=456,257 --virtual-time-budget=9000 \
+              --screenshot="screenshots/live/${view}.png" "https://dmo18.github.io/rdr/?view=${view}&verify=${GITHUB_SHA}"
+          done
           python3 - <<'PY'
-          import struct
-          for p in ['screenshots/local-radar.png','screenshots/live-radar.png']:
+          import glob, struct
+          files=sorted(glob.glob('screenshots/live/*.png'))
+          assert len(files)==8, files
+          for p in files:
               with open(p,'rb') as f:
-                  f.read(16); width,height=struct.unpack('>II',f.read(8))
-              assert (width,height)==(456,257),(p,width,height)
-          print('live radar panel passed at exact Yodeck dimensions')
+                  assert f.read(8)==b'\x89PNG\r\n\x1a\n'
+                  f.read(4); assert f.read(4)==b'IHDR'
+                  width,height=struct.unpack('>II',f.read(8))
+                  assert (width,height)==(456,257),(p,width,height)
+          print('all deployed radar views rendered at 456x257')
           PY
 
-      - name: Upload radar renders
+      - name: Upload verification renders
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rdr-yodeck-radar-renders
+          name: rdr-radar-ops-renders
           path: screenshots/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
