@@ -1,0 +1,9 @@
+{
+  "name":"RDR Weather Operations",
+  "short_name":"RDR Weather",
+  "start_url":"./",
+  "display":"fullscreen",
+  "background_color":"#050a11",
+  "theme_color":"#08111f",
+  "description":"Unattended 640 x 480 weather operations display for Broward County, Florida."
+}
