@@ -1,0 +1,36 @@
+[location]
+name = "Home"
+latitude = 35.7796
+longitude = -78.6382
+units = "imperial"
+
+[display]
+width = 640
+height = 480
+fullscreen = false
+fps = 30
+night_start_hour = 21
+night_end_hour = 6
+
+[rotation]
+current_seconds = 8
+radar_seconds = 10
+forecast_seconds = 8
+clouds_seconds = 7
+lightning_seconds = 7
+rain_arrival_seconds = 8
+severe_seconds = 12
+tropical_seconds = 10
+
+[thresholds]
+lightning_watch_miles = 25.0
+lightning_warning_miles = 10.0
+lightning_override_miles = 5.0
+tropical_relevance_miles = 900.0
+rain_approach_minutes = 90
+
+[data]
+provider = "mock"
+refresh_seconds = 60
+stale_after_seconds = 900
+weather_api_key_env = "RDR_WEATHER_API_KEY"
