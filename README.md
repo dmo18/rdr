@@ -1,50 +1,29 @@
-# RDR Radar Ops Panel
+# RDR South Florida Radar
 
-A radar-first static web panel built for a **456 x 257** Yodeck slot.
+A single-screen **456 x 257** radar instrument for Yodeck.
 
-## Included views
+Default home point: `26.06197904865014, -80.18787062578414`.
 
-1. Hyperlocal Radar
-2. Metro Radar
-3. South Florida Radar
-4. Southeast Radar
-5. Infrared Satellite
-6. Warnings
-7. Tropical 2-Day Outlook
-8. Tropical 5-Day Outlook
+## Product design
 
-## Default location
+The page is one continuous radar display, not a carousel of external graphics.
 
-- Latitude: `26.06197904865014`
-- Longitude: `-80.18787062578414`
+- Main map: high-resolution KAMX super-resolution base reflectivity centered on the home point.
+- Recent-frame animation: uses the WMS time dimension when the radar service exposes it.
+- Home context: fixed HOME reticle plus 10-mile and 25-mile range rings.
+- Hazard context: short-fuse NWS warning polygons are drawn on the same radar map.
+- Regional context: an integrated Florida / Gulf / Cuba inset combines CONUS and Caribbean MRMS radar mosaics so upstream rain is visible without leaving the local map.
+- Basemap: darkened OpenStreetMap tiles for city, road, coastline, and place context.
+- Telemetry: one 18-pixel status line with radar mode, source state, warnings, and latest frame time.
 
-## Files
+## Public data
 
-- `index.html`
-- `styles.css`
-- `app.js`
+No account, token, key, registration, or paid service is required.
 
-## Behavior
-
-- Rotates through radar-centric views every 9 seconds
-- Uses only a thin status bar at the bottom
-- Supports `?view=hyperlocal` or any other view id to force a specific screen
-- Uses direct public image resources for radar, tropical graphics, satellite imagery, and hazards
-- Falls back to the latest static KAMX frame if the local KAMX loop fails
-
-## Force a view
-
-Examples:
-
-- `index.html?view=hyperlocal`
-- `index.html?view=metro`
-- `index.html?view=southfl`
-- `index.html?view=southeast`
-- `index.html?view=satellite`
-- `index.html?view=warnings`
-- `index.html?view=trop2`
-- `index.html?view=trop5`
+The app uses public NOAA/NWS OGC WMS services for radar and warnings and public OpenStreetMap tiles for geographic context.
 
 ## Deployment
 
-GitHub Pages publishes from `main` at `https://dmo18.github.io/rdr/`.
+GitHub Pages publishes `main` at `https://dmo18.github.io/rdr/`.
+
+The verification workflow checks the WMS products directly, renders the application locally at exactly 456 x 257, waits for the matching Pages deployment, then renders and validates the deployed public page at exactly 456 x 257.
