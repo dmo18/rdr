@@ -244,9 +244,8 @@ async function loadLocalRadar(){
     if(loaded === 1){
       state.localLoaded = true;
       panel.dataset.localRadar = 'ok';
-      homeSignal.textContent = 'RADAR';
-      homeSignal.style.color = '#dbe9f4';
       maybeReady();
+      updateHomeRain();
     }
     if(loaded === wanted.length) startFrameLoop();
   };
@@ -273,7 +272,7 @@ function loadLocalFallback(){
     onLoad: () => {
       img.classList.add('active');
       state.localFrames=[img]; state.localLoaded=true; panel.dataset.localRadar='fallback';
-      statusSource.textContent='KAMX FALLBACK'; homeSignal.textContent='RADAR'; homeSignal.style.color='#ffd36b'; maybeReady(); updateTelemetry();
+      statusSource.textContent='KAMX FALLBACK'; homeSignal.textContent='RADAR'; homeSignal.style.color='#ffd36b'; maybeReady(); updateTelemetry(); updateHomeRain();
     },
     onError: () => { panel.dataset.localRadar='down'; homeSignal.textContent='NO RADAR'; homeSignal.style.color='#ff7c8e'; maybeReady(); }
   });
