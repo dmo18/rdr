@@ -105,6 +105,62 @@ function wmsUrl(service, map, time = null){
   return `${service.url}?${p.toString()}`;
 }
 
+
+function featureInfoUrl(service, map){
+  const vp = viewport(map);
+  const p = new URLSearchParams({
+    SERVICE: 'WMS', VERSION: '1.1.1', REQUEST: 'GetFeatureInfo',
+    LAYERS: service.layer, QUERY_LAYERS: service.layer, STYLES: '',
+    SRS: 'EPSG:3857', BBOX: vp.bbox.join(','),
+    WIDTH: String(map.width), HEIGHT: String(map.height),
+    X: String(Math.floor(map.width / 2)), Y: String(Math.floor(map.height / 2)),
+    INFO_FORMAT: 'application/json', FEATURE_COUNT: '1'
+  });
+  p.set('_', String(Date.now()));
+  return `${service.url}?${p.toString()}`;
+}
+
+function extractReflectivity(payload){
+  const props = payload?.features?.[0]?.properties || payload?.properties || {};
+  const entries = Object.entries(props);
+  const preferred = entries.filter(([key]) => /gray|value|reflect|bref|dbz/i.test(key));
+  const candidates = [...preferred, ...entries];
+  for(const [, raw] of candidates){
+    const value = Number(raw);
+    if(Number.isFinite(value) && value >= -50 && value <= 100) return value;
+  }
+  return null;
+}
+
+function classifyReflectivity(dbz){
+  if(dbz == null || dbz < 5) return { label: 'DRY', color: '#8fd3ff' };
+  if(dbz < 20) return { label: 'SPRINKLE', color: '#69e58b' };
+  if(dbz < 35) return { label: 'RAIN', color: '#ffe05a' };
+  if(dbz < 50) return { label: 'HEAVY', color: '#ff9a45' };
+  return { label: 'INTENSE', color: '#ff5367' };
+}
+
+async function updateHomeRain(){
+  try{
+    const r = await fetch(featureInfoUrl(CFG.services.local, CFG.local), { cache: 'no-store', mode: 'cors' });
+    if(!r.ok) throw new Error(`home reflectivity ${r.status}`);
+    const payload = await r.json();
+    const dbz = extractReflectivity(payload);
+    const status = classifyReflectivity(dbz);
+    homeSignal.textContent = status.label;
+    homeSignal.style.color = status.color;
+    panel.dataset.homeRain = status.label.toLowerCase();
+    if(dbz != null) panel.dataset.homeDbz = dbz.toFixed(1);
+  }catch(err){
+    state.errors.push(`home rain: ${err.message || err}`);
+    if(state.localLoaded){
+      homeSignal.textContent = 'RADAR';
+      homeSignal.style.color = '#dbe9f4';
+      panel.dataset.homeRain = 'unknown';
+    }
+  }
+}
+
 function addWmsImage(hostId, service, map, options = {}){
   const host = document.getElementById(hostId);
   if(options.replace !== false) host.innerHTML = '';
@@ -188,8 +244,8 @@ async function loadLocalRadar(){
     if(loaded === 1){
       state.localLoaded = true;
       panel.dataset.localRadar = 'ok';
-      homeSignal.textContent = 'LIVE';
-      homeSignal.style.color = '#56ef99';
+      homeSignal.textContent = 'RADAR';
+      homeSignal.style.color = '#dbe9f4';
       maybeReady();
     }
     if(loaded === wanted.length) startFrameLoop();
@@ -217,7 +273,7 @@ function loadLocalFallback(){
     onLoad: () => {
       img.classList.add('active');
       state.localFrames=[img]; state.localLoaded=true; panel.dataset.localRadar='fallback';
-      statusSource.textContent='KAMX FALLBACK'; homeSignal.textContent='LIVE'; homeSignal.style.color='#ffd36b'; maybeReady(); updateTelemetry();
+      statusSource.textContent='KAMX FALLBACK'; homeSignal.textContent='RADAR'; homeSignal.style.color='#ffd36b'; maybeReady(); updateTelemetry();
     },
     onError: () => { panel.dataset.localRadar='down'; homeSignal.textContent='NO RADAR'; homeSignal.style.color='#ff7c8e'; maybeReady(); }
   });
@@ -266,6 +322,7 @@ async function refreshAll(){
   loadRegional();
   loadWarnings();
   updateTelemetry();
+  updateHomeRain();
 }
 
 function init(){

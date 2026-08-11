@@ -22,12 +22,15 @@ jobs:
           set -euo pipefail
           node --check app.js
           grep -q '<title>RDR South Florida Radar</title>' index.html
+          grep -q 'data-version="2026.08.11.3"' index.html
           grep -q '456px' styles.css
           grep -q '257px' styles.css
           grep -q 'kamx_sr_bref' app.js
           grep -q 'conus_bref_qcd' app.js
           grep -q 'carib_bref_qcd' app.js
           grep -q "layer: 'warnings'" app.js
+          grep -q 'featureInfoUrl' app.js
+          grep -q 'classifyReflectivity' app.js
           grep -q 'FL · GULF · CUBA' index.html
           ! grep -RniE 'api[_-]?key|access[_-]?token|client[_-]?secret|password=' index.html styles.css app.js
           ! grep -q "views:" app.js
@@ -37,24 +40,39 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ua='Mozilla/5.0 RDR-Yodeck/2.0'
+          ua='Mozilla/5.0 RDR-Yodeck/3.0'
+          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" \
+            'https://opengeo.ncep.noaa.gov/geoserver/conus/conus_bref_qcd/ows?service=WMS&version=1.1.1&request=GetCapabilities' \
+            -o /tmp/conus.xml
+          grep -q 'conus_bref_qcd' /tmp/conus.xml
+
           curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" \
             'https://opengeo.ncep.noaa.gov/geoserver/kamx/ows?service=WMS&version=1.1.1&request=GetCapabilities' \
             -o /tmp/kamx.xml
           grep -q 'kamx_sr_bref' /tmp/kamx.xml
 
           curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" \
-            'https://opengeo.ncep.noaa.gov/geoserver/kamx/ows?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=kamx_sr_bref&STYLES=&SRS=EPSG:4326&BBOX=-81.0,25.1,-79.3,27.1&WIDTH=456&HEIGHT=239&FORMAT=image/png&TRANSPARENT=TRUE' \
-            -o /tmp/kamx.png
-          file /tmp/kamx.png | grep -q 'PNG image data'
+            'https://opengeo.ncep.noaa.gov/geoserver/conus/conus_bref_qcd/ows?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=conus_bref_qcd&STYLES=&SRS=EPSG:4326&BBOX=-81.0,25.1,-79.3,27.1&WIDTH=456&HEIGHT=239&FORMAT=image/png&TRANSPARENT=TRUE' \
+            -o /tmp/local.png
+          file /tmp/local.png | grep -q 'PNG image data'
 
           curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" \
-            'https://opengeo.ncep.noaa.gov/geoserver/conus/conus_bref_qcd/ows?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=conus_bref_qcd&STYLES=&SRS=EPSG:4326&BBOX=-94,21,-75,33&WIDTH=456&HEIGHT=239&FORMAT=image/png&TRANSPARENT=TRUE' \
+            'https://opengeo.ncep.noaa.gov/geoserver/conus/conus_bref_qcd/ows?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&LAYERS=conus_bref_qcd&QUERY_LAYERS=conus_bref_qcd&STYLES=&SRS=EPSG:4326&BBOX=-80.4,25.9,-80.0,26.3&WIDTH=101&HEIGHT=101&X=50&Y=50&INFO_FORMAT=application/json&FEATURE_COUNT=1' \
+            -o /tmp/home.json
+          python3 - <<'PY'
+          import json
+          j=json.load(open('/tmp/home.json'))
+          assert 'features' in j, j
+          print('home radar point query valid')
+          PY
+
+          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" \
+            'https://opengeo.ncep.noaa.gov/geoserver/conus/conus_bref_qcd/ows?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=conus_bref_qcd&STYLES=&SRS=EPSG:4326&BBOX=-94,18,-74,34&WIDTH=456&HEIGHT=239&FORMAT=image/png&TRANSPARENT=TRUE' \
             -o /tmp/conus.png
           file /tmp/conus.png | grep -q 'PNG image data'
 
           curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" \
-            'https://opengeo.ncep.noaa.gov/geoserver/carib/carib_bref_qcd/ows?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=carib_bref_qcd&STYLES=&SRS=EPSG:4326&BBOX=-94,21,-75,33&WIDTH=456&HEIGHT=239&FORMAT=image/png&TRANSPARENT=TRUE' \
+            'https://opengeo.ncep.noaa.gov/geoserver/carib/carib_bref_qcd/ows?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=carib_bref_qcd&STYLES=&SRS=EPSG:4326&BBOX=-94,18,-74,34&WIDTH=456&HEIGHT=239&FORMAT=image/png&TRANSPARENT=TRUE' \
             -o /tmp/carib.png
           file /tmp/carib.png | grep -q 'PNG image data'
 
@@ -74,12 +92,14 @@ jobs:
           sleep 1
           mkdir -p screenshots
           timeout 50s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
-            --hide-scrollbars --window-size=456,257 --virtual-time-budget=16000 \
+            --hide-scrollbars --window-size=456,257 --virtual-time-budget=18000 \
             --dump-dom 'http://127.0.0.1:8765/' > /tmp/local-dom.html
+          grep -q 'data-version="2026.08.11.3"' /tmp/local-dom.html
           grep -q 'data-ready="true"' /tmp/local-dom.html
           grep -Eq 'data-local-radar="(ok|fallback)"' /tmp/local-dom.html
+          grep -Eq 'data-home-rain="(dry|sprinkle|rain|heavy|intense)"' /tmp/local-dom.html
           timeout 50s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
-            --hide-scrollbars --window-size=456,257 --virtual-time-budget=16000 \
+            --hide-scrollbars --window-size=456,257 --virtual-time-budget=18000 \
             --screenshot=screenshots/local-radar.png 'http://127.0.0.1:8765/'
           python3 - <<'PY'
           import struct
@@ -100,7 +120,7 @@ jobs:
           ok=0
           for attempt in $(seq 1 42); do
             if curl -fsSL --max-time 15 -H 'Cache-Control: no-cache' "${target}?verify=${GITHUB_SHA}-${attempt}" -o /tmp/live.html; then
-              if grep -q '<title>RDR South Florida Radar</title>' /tmp/live.html && grep -q 'FL · GULF · CUBA' /tmp/live.html; then
+              if grep -q 'data-version="2026.08.11.3"' /tmp/live.html && grep -q 'MRMS QCD + KAMX' /tmp/live.html; then
                 ok=1; break
               fi
             fi
@@ -116,11 +136,13 @@ jobs:
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           live="https://dmo18.github.io/rdr/?verify=${GITHUB_SHA}"
           timeout 50s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
-            --hide-scrollbars --window-size=456,257 --virtual-time-budget=18000 --dump-dom "$live" > /tmp/live-dom.html
+            --hide-scrollbars --window-size=456,257 --virtual-time-budget=20000 --dump-dom "$live" > /tmp/live-dom.html
+          grep -q 'data-version="2026.08.11.3"' /tmp/live-dom.html
           grep -q 'data-ready="true"' /tmp/live-dom.html
           grep -Eq 'data-local-radar="(ok|fallback)"' /tmp/live-dom.html
+          grep -Eq 'data-home-rain="(dry|sprinkle|rain|heavy|intense)"' /tmp/live-dom.html
           timeout 50s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
-            --hide-scrollbars --window-size=456,257 --virtual-time-budget=18000 \
+            --hide-scrollbars --window-size=456,257 --virtual-time-budget=20000 \
             --screenshot=screenshots/live-radar.png "$live"
           python3 - <<'PY'
           import struct
