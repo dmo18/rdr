@@ -5,8 +5,31 @@
 .screen-dots i{width:5px;height:5px;border-radius:4px;background:#34445a;transition:.25s}
 .screen-dots i.active{width:17px;background:var(--cyan)}
 .freshness{width:150px;text-align:right;color:var(--muted)}
-.boot{position:absolute;z-index:5000;inset:0;background:radial-gradient(circle at 50% 35%,#0e2234,#03070c 70%);display:grid;place-content:center;justify-items:center;transition:opacity .45s,visibility .45s}
-.boot.off{opacity:0;visibility:hidden}
+
+.mini-radar{position:absolute;z-index:900;right:8px;top:57px;width:108px;height:78px;overflow:hidden;border:1px solid #4e637a;border-radius:6px;background:#07101a;box-shadow:0 8px 25px #000b;transition:opacity .2s ease,transform .2s ease}
+.mini-radar.hidden{display:block!important;opacity:0;visibility:hidden;transform:translateY(-4px);pointer-events:none}
+.mini-map-base{position:absolute;inset:0;overflow:hidden;background:#0a1622}
+.mini-map-base .map-tile{filter:saturate(.42) brightness(.38) contrast(1.12)}
+.mini-radar-overlay{position:absolute;z-index:3;left:50%;top:50%;width:180px;height:180px;transform:translate(-50%,-50%);object-fit:contain;opacity:.82;mix-blend-mode:screen}
+.mini-radar-shade{position:absolute;z-index:4;inset:0;pointer-events:none;background:linear-gradient(#02070d99,transparent 36%,transparent 70%,#02070dcc),radial-gradient(circle at 50% 50%,transparent 38%,#02070d99)}
+.mini-radar-head{position:absolute;z-index:7;left:5px;right:5px;top:4px;display:flex;justify-content:space-between;align-items:center;text-shadow:0 1px 4px #000}
+.mini-radar-head strong{font-size:7px;letter-spacing:.1em;color:#f4f7fb}
+.mini-radar-head span{font:800 5px ui-monospace,SFMono-Regular,Menlo,monospace;color:#c7d4df}
+.mini-radar-reticle{position:absolute;z-index:8;left:50%;top:53%;width:12px;height:12px;transform:translate(-50%,-50%);border:1px solid #fff;border-radius:50%;box-shadow:0 0 0 2px #0008}
+.mini-radar-reticle:before,.mini-radar-reticle:after{content:"";position:absolute;background:#fff}
+.mini-radar-reticle:before{width:1px;height:20px;left:5px;top:-5px}
+.mini-radar-reticle:after{height:1px;width:20px;left:-5px;top:5px}
+.mini-radar-reticle i{position:absolute;inset:3px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+.mini-radar-fallback{position:absolute;z-index:9;inset:18px 5px 5px;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:3px;background:#07101ad9;color:#aebdcb;font-size:6px;font-weight:900;letter-spacing:.08em}
+
+#screen-current .screen-kicker,#screen-storm>.screen-kicker,#screen-rain>.screen-kicker{padding-right:120px}
+#screen-forecast .screen-title-row{padding-right:126px}
+#screen-clouds .cloud-copy{max-width:455px}
+#screen-alerts .alert-band,#screen-alerts>p{max-width:485px}
+#screen-tropical .tropical-layout{padding-right:126px}
+
+.boot{position:absolute;z-index:5000;inset:0;background:radial-gradient(circle at 50% 35%,#0e2234,#03070c 70%);display:grid;place-content:center;justify-items:center;transition:opacity .3s,visibility .3s}
+.boot.off{opacity:0;visibility:hidden;pointer-events:none}
 .boot-logo{display:flex;align-items:center;gap:12px}
 .boot-logo i{width:18px;height:18px;border:3px solid var(--cyan);border-radius:50%;box-shadow:0 0 20px #39d2ff77}
 .boot-logo strong{font-size:38px;letter-spacing:.15em}
