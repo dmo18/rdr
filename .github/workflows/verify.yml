@@ -1,4 +1,4 @@
-name: Verify deployed weather product
+name: Verify radar-only Yodeck panel
 
 on:
   push:
@@ -11,64 +11,43 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Static integrity
+      - name: Static integrity and radar-only policy
         shell: bash
         run: |
           set -euo pipefail
-          node --check core.js
-          node --check views.js
-          node --check runtime.js
+          node --check radar.js
           node --check sw.js
-          python3 - <<'PY'
-          import json
-          json.load(open('manifest.webmanifest'))
-          print('manifest valid')
-          PY
-          ! grep -RniE 'apikey=|api_key|client_secret|access_token|unpkg\.com|jsdelivr\.net|cdnjs\.cloudflare\.com' index.html styles-1.css styles-2.css styles-3.css styles-4.css core.js views.js runtime.js sw.js
+          grep -q 'width:456px;height:257px' radar.css
+          grep -q 'radar.weather.gov/ridge/standard/KAMX_loop.gif' radar.js
+          ! grep -RniE 'open-meteo|api\.weather\.gov|rainviewer|apikey|api_key|client_secret|access_token|unpkg\.com|jsdelivr\.net|cdnjs\.cloudflare\.com' index.html radar.css radar.js sw.js
           ! grep -Eqi '<script[^>]+src="https?://' index.html
           ! grep -Eqi '<link[^>]+href="https?://' index.html
+          test "$(grep -o '<header' index.html | wc -l)" = 0
+          echo 'radar-only static policy passed'
 
-      - name: Probe anonymous public data resources
+      - name: Probe direct NOAA radar images
         shell: bash
         run: |
           set -euo pipefail
-          WEATHER='https://api.open-meteo.com/v1/forecast?latitude=26.06197904865014&longitude=-80.18787062578414&current=temperature_2m&hourly=temperature_2m&timezone=America%2FNew_York&timeformat=unixtime&forecast_days=1'
-          curl -fsSL --retry 3 --retry-delay 2 --max-time 20 "$WEATHER" -o /tmp/weather.json
+          curl -fsSL --retry 4 --retry-delay 2 --max-time 30 \
+            'https://radar.weather.gov/ridge/standard/KAMX_loop.gif' -o /tmp/kamx-loop.gif
+          curl -fsSL --retry 4 --retry-delay 2 --max-time 30 \
+            'https://radar.weather.gov/ridge/standard/KAMX_0.gif' -o /tmp/kamx-frame.gif
           python3 - <<'PY'
-          import json
-          j=json.load(open('/tmp/weather.json'))
-          assert isinstance(j.get('current',{}).get('temperature_2m'), (int,float))
-          assert len(j.get('hourly',{}).get('time',[])) >= 6
-          print('weather source valid')
+          from pathlib import Path
+          for p in ['/tmp/kamx-loop.gif','/tmp/kamx-frame.gif']:
+              b=Path(p).read_bytes()
+              assert b[:6] in (b'GIF87a',b'GIF89a'), p
+              assert len(b) > 10000, (p,len(b))
+          print('direct NOAA KAMX images valid')
           PY
 
-          curl -fsSL --retry 3 --retry-delay 2 --max-time 20 \
-            -H 'Accept: application/geo+json' \
-            -H 'User-Agent: rdr-weather-ops/3.0 github.com/dmo18/rdr' \
-            'https://api.weather.gov/alerts/active?point=26.06197904865014,-80.18787062578414' -o /tmp/alerts.json
-          python3 - <<'PY'
-          import json
-          j=json.load(open('/tmp/alerts.json'))
-          assert j.get('type') == 'FeatureCollection'
-          assert isinstance(j.get('features'), list)
-          print('NWS alerts source valid')
-          PY
-
-          curl -fsSL --retry 3 --retry-delay 2 --max-time 20 'https://api.rainviewer.com/public/weather-maps.json' -o /tmp/radar.json
-          python3 - <<'PY'
-          import json
-          j=json.load(open('/tmp/radar.json'))
-          assert j.get('host','').startswith('https://')
-          assert len(j.get('radar',{}).get('past',[])) > 0
-          print('radar metadata source valid')
-          PY
-
-      - name: Render every product view at 640 x 480
+      - name: Render exact 456 x 257 panel locally
         shell: bash
         run: |
           set -euo pipefail
@@ -79,35 +58,23 @@ jobs:
           trap 'kill $SERVER_PID || true' EXIT
           sleep 1
           mkdir -p screenshots
-          cases=(
-            'current-clear|demo=clear&screen=current'
-            'radar|demo=clear&screen=radar'
-            'rain|demo=rain&screen=rain'
-            'forecast|demo=rain&screen=forecast'
-            'clouds|demo=clear&screen=clouds'
-            'storm|demo=storm&screen=storm'
-            'alerts|demo=severe&screen=alerts'
-            'tropical|demo=hurricane&screen=tropical'
-            'offline|offline=1&screen=current'
-          )
-          for item in "${cases[@]}"; do
-            name="${item%%|*}"; query="${item#*|}"
-            "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
-              --hide-scrollbars --window-size=640,480 --virtual-time-budget=5000 \
-              --screenshot="screenshots/${name}.png" "http://127.0.0.1:8765/?${query}"
-          done
+          "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
+            --hide-scrollbars --window-size=456,257 --virtual-time-budget=9000 \
+            --screenshot=screenshots/local-radar.png 'http://127.0.0.1:8765/'
+          "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
+            --window-size=456,257 --virtual-time-budget=9000 --dump-dom \
+            'http://127.0.0.1:8765/' > /tmp/local-dom.html
+          grep -q '>LIVE<' /tmp/local-dom.html
+          ! grep -q 'RADAR FEED UNAVAILABLE' /tmp/local-dom.html || ! grep -q 'source-failure hidden' /tmp/local-dom.html
           python3 - <<'PY'
-          import glob,struct
-          files=glob.glob('screenshots/*.png')
-          assert len(files)==9, files
-          for p in files:
-              with open(p,'rb') as f:
-                  assert f.read(8)==b'\x89PNG\r\n\x1a\n'
-                  length=struct.unpack('>I',f.read(4))[0]
-                  assert f.read(4)==b'IHDR'
-                  width,height=struct.unpack('>II',f.read(8))
-                  assert (width,height)==(640,480),(p,width,height)
-          print('all 9 local render screenshots are exactly 640x480')
+          import struct
+          p='screenshots/local-radar.png'
+          with open(p,'rb') as f:
+              assert f.read(8)==b'\x89PNG\r\n\x1a\n'
+              f.read(8)
+              width,height=struct.unpack('>II',f.read(8))
+          assert (width,height)==(456,257),(width,height)
+          print('local radar render is exactly 456x257')
           PY
 
       - name: Wait for this commit on GitHub Pages
@@ -118,49 +85,42 @@ jobs:
           ok=0
           for attempt in $(seq 1 36); do
             if curl -fsSL --max-time 15 -H 'Cache-Control: no-cache' "${target}?verify=${GITHUB_SHA}-${attempt}" -o /tmp/live.html; then
-              if grep -q '<title>RDR Weather Operations</title>' /tmp/live.html && grep -q 'styles-1.css' /tmp/live.html && grep -q 'runtime.js' /tmp/live.html; then
+              if grep -q '<title>RDR South Florida Radar</title>' /tmp/live.html && grep -q 'radar.css' /tmp/live.html && grep -q 'radar.js' /tmp/live.html; then
                 ok=1; break
               fi
             fi
-            echo "waiting for Pages deployment (${attempt}/36)"
             sleep 10
           done
           test "$ok" = 1
           echo 'public Pages HTML is current'
 
-      - name: Browser-verify live source health and render public site
+      - name: Render and verify deployed panel
         shell: bash
         run: |
           set -euo pipefail
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
-          live="https://dmo18.github.io/rdr/?diag=1&screen=current&verify=${GITHUB_SHA}"
+          live="https://dmo18.github.io/rdr/?verify=${GITHUB_SHA}"
           "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
-            --window-size=640,480 --virtual-time-budget=18000 --dump-dom "$live" > /tmp/live-dom.html
-          grep -q 'weather: ok' /tmp/live-dom.html
-          grep -q 'alerts: ok' /tmp/live-dom.html
-          grep -q 'radar: ok' /tmp/live-dom.html
-          grep -q 'errors: none' /tmp/live-dom.html
-
+            --window-size=456,257 --virtual-time-budget=12000 --dump-dom "$live" > /tmp/live-dom.html
+          grep -q '>LIVE<' /tmp/live-dom.html
+          grep -q 'source-failure hidden' /tmp/live-dom.html
           "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
-            --hide-scrollbars --window-size=640,480 --virtual-time-budget=12000 \
-            --screenshot=screenshots/live-current.png "https://dmo18.github.io/rdr/?screen=current&verify=${GITHUB_SHA}"
-          "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
-            --hide-scrollbars --window-size=640,480 --virtual-time-budget=12000 \
-            --screenshot=screenshots/live-radar.png "https://dmo18.github.io/rdr/?screen=radar&verify=${GITHUB_SHA}"
+            --hide-scrollbars --window-size=456,257 --virtual-time-budget=12000 \
+            --screenshot=screenshots/live-radar.png "$live"
           python3 - <<'PY'
           import struct
-          for p in ['screenshots/live-current.png','screenshots/live-radar.png']:
+          for p in ['screenshots/local-radar.png','screenshots/live-radar.png']:
               with open(p,'rb') as f:
                   f.read(16); width,height=struct.unpack('>II',f.read(8))
-                  assert (width,height)==(640,480),(p,width,height)
-          print('live browser diagnostics and public renders passed')
+              assert (width,height)==(456,257),(p,width,height)
+          print('live radar panel passed at exact Yodeck dimensions')
           PY
 
-      - name: Upload verification renders
+      - name: Upload radar renders
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rdr-render-verification
+          name: rdr-yodeck-radar-renders
           path: screenshots/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14
