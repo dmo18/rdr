@@ -1,30 +1,50 @@
-# RDR South Florida Radar
+# RDR Radar Ops Panel
 
-A single-purpose 456 x 257 radar panel for Yodeck.
+A radar-first static web panel built for a **456 x 257** Yodeck slot.
 
-Default target location: `26.06197904865014, -80.18787062578414`.
+## Included views
 
-## Product
+1. Hyperlocal Radar
+2. Metro Radar
+3. South Florida Radar
+4. Southeast Radar
+5. Infrared Satellite
+6. Warnings
+7. Tropical 2-Day Outlook
+8. Tropical 5-Day Outlook
 
-The deployed page is intentionally radar-only. There are no forecast cards, current-condition widgets, alert rotations, headers, navigation controls, or generic weather dashboard screens.
+## Default location
 
-The visual hierarchy is:
+- Latitude: `26.06197904865014`
+- Longitude: `-80.18787062578414`
 
-1. Edge-to-edge animated Miami KAMX NEXRAD base reflectivity.
-2. A precise target reticle for the configured location.
-3. A 17-pixel telemetry strip with live state, radar station, product, and the last successful image-load timestamp.
+## Files
 
-## Data source
+- `index.html`
+- `styles.css`
+- `app.js`
 
-The browser loads NOAA/National Weather Service radar images directly:
+## Behavior
 
-- `https://radar.weather.gov/ridge/standard/KAMX_loop.gif`
-- fallback frame: `https://radar.weather.gov/ridge/standard/KAMX_0.gif`
+- Rotates through radar-centric views every 9 seconds
+- Uses only a thin status bar at the bottom
+- Supports `?view=hyperlocal` or any other view id to force a specific screen
+- Uses direct public image resources for radar, tropical graphics, satellite imagery, and hazards
+- Falls back to the latest static KAMX frame if the local KAMX loop fails
 
-No account, API key, token, registration, package dependency, or paid service is required.
+## Force a view
+
+Examples:
+
+- `index.html?view=hyperlocal`
+- `index.html?view=metro`
+- `index.html?view=southfl`
+- `index.html?view=southeast`
+- `index.html?view=satellite`
+- `index.html?view=warnings`
+- `index.html?view=trop2`
+- `index.html?view=trop5`
 
 ## Deployment
 
 GitHub Pages publishes from `main` at `https://dmo18.github.io/rdr/`.
-
-The verification workflow probes the NOAA GIFs, renders the page locally at exactly 456 x 257, waits for the matching Pages deployment, then renders and verifies the public URL at exactly 456 x 257. Render screenshots are saved as a GitHub Actions artifact.
