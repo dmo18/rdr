@@ -10,7 +10,7 @@ body{display:grid;place-items:center;font-family:ui-monospace,SFMono-Regular,Men
 .scanlines{position:absolute;z-index:4;inset:0;pointer-events:none;opacity:.045;background:repeating-linear-gradient(to bottom,transparent 0,transparent 2px,#d8f5ff 3px,transparent 4px)}
 .edge-vignette{position:absolute;z-index:5;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 58%,#0103064d 82%,#010306c2 100%),linear-gradient(to bottom,transparent 0,transparent 78%,#010306c9 100%)}
 
-.target{position:absolute;z-index:9;left:55.3%;top:28.8%;width:18px;height:18px;transform:translate(-50%,-50%);filter:drop-shadow(0 1px 2px #000)}
+.target{position:absolute;z-index:9;left:54.4%;top:31.9%;width:18px;height:18px;transform:translate(-50%,-50%);filter:drop-shadow(0 1px 2px #000)}
 .target-ring{position:absolute;inset:0;border:1px solid #fff;border-radius:50%;box-shadow:0 0 0 1px #000b,0 0 8px #fff5}
 .target-ring:before,.target-ring:after{content:"";position:absolute;background:#fff}
 .target-ring:before{left:8px;top:-5px;width:1px;height:26px;box-shadow:0 0 0 1px #0004}
