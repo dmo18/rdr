@@ -3,137 +3,42 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#08111f">
+  <meta name="theme-color" content="#020509">
   <meta name="color-scheme" content="dark">
-  <meta name="description" content="RDR unattended 640 x 480 weather operations display for Broward County, Florida.">
+  <meta name="description" content="456 x 257 South Florida NEXRAD radar panel for Yodeck.">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.open-meteo.com https://api.weather.gov https://api.rainviewer.com; img-src 'self' data: https:; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'none'">
-  <title>RDR Weather Operations</title>
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles-1.css">
-  <link rel="stylesheet" href="styles-2.css">
-  <link rel="stylesheet" href="styles-3.css">
-  <link rel="stylesheet" href="styles-4.css">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https://radar.weather.gov data:; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <title>RDR South Florida Radar</title>
+  <link rel="stylesheet" href="radar.css">
 </head>
 <body>
-  <div id="viewport">
-    <main id="app" aria-live="polite">
-      <header class="topbar">
-        <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>RDR</span><small>WEATHER OPS</small></div>
-        <div class="location"><strong>BROWARD COUNTY, FL</strong><span>26.06198, -80.18787</span></div>
-        <div class="top-status"><span id="severityChip" class="chip good">NORMAL</span><time id="clock">--:--</time></div>
-      </header>
+  <main id="radarApp" aria-label="South Florida radar">
+    <div class="radar-stage">
+      <img id="radarImage" class="radar-image" alt="Animated Miami KAMX NEXRAD base reflectivity radar" referrerpolicy="no-referrer">
+      <div class="scanlines" aria-hidden="true"></div>
+      <div class="edge-vignette" aria-hidden="true"></div>
 
-      <section id="screen-current" class="screen active" data-screen="current">
-        <div class="screen-kicker">CURRENT CONDITIONS</div>
-        <div class="current-grid">
-          <div class="current-main">
-            <div class="temp-line"><span id="currentTemp" class="temperature">--</span><span class="degree">°</span><span id="currentIcon" class="wx-icon">◌</span></div>
-            <div id="currentCondition" class="condition">CONNECTING</div>
-            <div id="currentIntel" class="intel-card">ACQUIRING LIVE WEATHER</div>
-          </div>
-          <div class="metric-stack">
-            <article><span>FEELS LIKE</span><strong id="feelsLike">--°</strong></article>
-            <article><span>WIND</span><strong id="windNow">--</strong></article>
-            <article><span>HUMIDITY</span><strong id="humidityNow">--%</strong></article>
-            <article><span>CLOUDS</span><strong id="cloudNow">--%</strong></article>
-          </div>
-        </div>
-      </section>
-
-      <section id="screen-radar" class="screen map-screen" data-screen="radar">
-        <div id="mapBase" class="map-base" aria-hidden="true"></div>
-        <img id="radarOverlay" class="radar-overlay" alt="Weather radar overlay" referrerpolicy="no-referrer">
-        <div class="map-vignette"></div>
-        <div class="map-head"><div><span class="screen-kicker">PRECIPITATION</span><strong>LOCAL RADAR</strong></div><span id="radarStamp">SOURCE CHECK</span></div>
-        <div class="location-reticle" aria-label="Configured location"><i></i></div>
-        <div class="radar-legend"><span>LIGHT</span><i></i><i></i><i></i><i></i><span>HEAVY</span></div>
-        <div id="radarFallback" class="map-fallback hidden"><strong>RADAR TEMPORARILY UNAVAILABLE</strong><span>Display continues with forecast and official alerts.</span></div>
-        <div class="attribution">BASE © OPENSTREETMAP · RADAR © RAINVIEWER</div>
-      </section>
-
-      <section id="screen-rain" class="screen" data-screen="rain">
-        <div class="screen-kicker">RAIN ARRIVAL</div>
-        <div class="hero-copy">
-          <span id="rainLabel">NEXT PRECIPITATION</span>
-          <strong id="rainHeadline">CHECKING</strong>
-          <p id="rainDetail">Scanning the next two hours.</p>
-        </div>
-        <div id="rainTimeline" class="timeline five"></div>
-      </section>
-
-      <section id="screen-forecast" class="screen" data-screen="forecast">
-        <div class="screen-title-row"><span class="screen-kicker">NEXT 6 HOURS</span><strong id="forecastCallout">FORECAST</strong></div>
-        <div id="hourGrid" class="hour-grid"></div>
-        <div class="forecast-summary">
-          <article><span>RAIN PEAK</span><strong id="rainPeak">--%</strong></article>
-          <article><span>WIND PEAK</span><strong id="windPeak">-- MPH</strong></article>
-          <article><span>TEMP RANGE</span><strong id="tempRange">--°</strong></article>
-        </div>
-      </section>
-
-      <section id="screen-clouds" class="screen" data-screen="clouds">
-        <div class="cloud-stage">
-          <div class="cloud-sky"><i class="sun-orb"></i><i class="cloud cloud-a"></i><i class="cloud cloud-b"></i></div>
-          <div class="cloud-copy"><span class="screen-kicker">CLOUD TREND</span><strong id="cloudHeadline">CHECKING SKY</strong><p id="cloudDetail">Analyzing hourly cloud cover.</p></div>
-        </div>
-        <div id="cloudTimeline" class="timeline six compact"></div>
-      </section>
-
-      <section id="screen-storm" class="screen" data-screen="storm">
-        <div class="screen-kicker">THUNDERSTORM OUTLOOK</div>
-        <div class="storm-layout">
-          <div><div id="stormRisk" class="risk-word">LOW</div><div id="stormMessage" class="storm-message">No thunderstorm signal in the near-term forecast.</div></div>
-          <div class="risk-meter"><i id="riskFill"></i><span>HIGH</span><span>LOW</span></div>
-        </div>
-        <div class="storm-stats">
-          <article><span>GUSTS</span><strong id="gustPeak">--</strong><small>MPH</small></article>
-          <article><span>RAIN</span><strong id="stormRain">--</strong><small>%</small></article>
-          <article><span>LIGHTNING</span><strong id="lightningState">N/A</strong><small>NO FREE DETECTION FEED</small></article>
-        </div>
-      </section>
-
-      <section id="screen-alerts" class="screen alert-screen" data-screen="alerts">
-        <div class="alert-band"><span id="alertType">OFFICIAL ALERT</span><strong id="alertHeadline">NO ACTIVE WARNING</strong></div>
-        <p id="alertSummary">National Weather Service alerts for the configured location will interrupt the normal rotation.</p>
-        <div class="alert-meta"><span id="alertArea">BROWARD COUNTY</span><span id="alertUntil">NO ACTIVE EXPIRATION</span></div>
-      </section>
-
-      <section id="screen-tropical" class="screen" data-screen="tropical">
-        <div class="screen-kicker">TROPICAL WEATHER</div>
-        <div class="tropical-layout">
-          <div class="cyclone" aria-hidden="true"><i></i><i></i><i></i><b></b></div>
-          <div><strong id="tropicalHeadline" class="tropical-head">LOCAL TROPICAL ALERT</strong><p id="tropicalSummary">This view appears only when an official tropical watch or warning affects the configured area.</p></div>
-        </div>
-        <div class="tropical-foot">OFFICIAL LOCAL ALERTS ONLY · NO SPECULATIVE TRACK CLAIMS</div>
-      </section>
-
-      <aside id="miniRadar" class="mini-radar" aria-label="Mini local radar">
-        <div id="miniMapBase" class="mini-map-base" aria-hidden="true"></div>
-        <img id="miniRadarOverlay" class="mini-radar-overlay" alt="Mini local weather radar" referrerpolicy="no-referrer">
-        <div class="mini-radar-shade"></div>
-        <div class="mini-radar-head"><strong>RADAR</strong><span id="miniRadarStamp">CHECK</span></div>
-        <div class="mini-radar-reticle"><i></i></div>
-        <div id="miniRadarFallback" class="mini-radar-fallback hidden">RADAR OFFLINE</div>
-      </aside>
-
-      <footer class="statusbar">
-        <div id="sourceHealth" class="source-health"><i></i><span>STARTING</span></div>
-        <div id="screenDots" class="screen-dots" aria-label="screen rotation"></div>
-        <div id="freshness" class="freshness">DATA --</div>
-      </footer>
-
-      <div id="boot" class="boot">
-        <div class="boot-logo"><i></i><strong>RDR</strong></div>
-        <div class="boot-title">WEATHER OPERATIONS</div>
-        <div id="bootStatus" class="boot-status">INITIALIZING LOCAL DISPLAY</div>
+      <div class="target" aria-label="Configured location 26.061979, -80.187871">
+        <span class="target-ring"></span>
+        <span class="target-dot"></span>
       </div>
 
-      <aside id="diagnostics" class="diagnostics hidden" aria-label="diagnostics"></aside>
-    </main>
-  </div>
-  <script src="core.js"></script>
-  <script src="views.js"></script>
-  <script src="runtime.js"></script>
+      <div id="sourceFailure" class="source-failure hidden">
+        <strong>RADAR FEED UNAVAILABLE</strong>
+        <span>RETRYING NOAA KAMX</span>
+      </div>
+
+      <div class="telemetry">
+        <span id="liveState" class="live-state"><i></i>LIVE</span>
+        <span class="divider"></span>
+        <span>KAMX</span>
+        <span class="divider"></span>
+        <span>0.5° REF</span>
+        <span class="telemetry-spacer"></span>
+        <span id="scanTime">--:--:--</span>
+      </div>
+    </div>
+  </main>
+  <script src="radar.js"></script>
 </body>
 </html>
