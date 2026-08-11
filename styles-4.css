@@ -1,0 +1,20 @@
+.source-health i{width:6px;height:6px;background:var(--green);border-radius:50%;box-shadow:0 0 8px #45d48366}
+.source-health.degraded i{background:var(--orange);box-shadow:none}
+.source-health.down i{background:var(--red);box-shadow:none}
+.screen-dots{flex:1;display:flex;justify-content:center;gap:5px}
+.screen-dots i{width:5px;height:5px;border-radius:4px;background:#34445a;transition:.25s}
+.screen-dots i.active{width:17px;background:var(--cyan)}
+.freshness{width:150px;text-align:right;color:var(--muted)}
+.boot{position:absolute;z-index:5000;inset:0;background:radial-gradient(circle at 50% 35%,#0e2234,#03070c 70%);display:grid;place-content:center;justify-items:center;transition:opacity .45s,visibility .45s}
+.boot.off{opacity:0;visibility:hidden}
+.boot-logo{display:flex;align-items:center;gap:12px}
+.boot-logo i{width:18px;height:18px;border:3px solid var(--cyan);border-radius:50%;box-shadow:0 0 20px #39d2ff77}
+.boot-logo strong{font-size:38px;letter-spacing:.15em}
+.boot-title{margin-top:7px;font-size:9px;font-weight:900;letter-spacing:.2em;color:#a5b4c4}
+.boot-status{margin-top:22px;font:800 8px ui-monospace,SFMono-Regular,Menlo,monospace;color:#66798d;letter-spacing:.08em}
+.diagnostics{position:absolute;z-index:7000;inset:58px 12px 42px;background:#02070df5;border:1px solid #32506a;border-radius:7px;padding:14px;overflow:auto;font:700 8px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;color:#c9d7e3;white-space:pre-wrap}
+.diagnostics b{color:var(--cyan)}
+
+body.night #app{filter:brightness(.78) saturate(.92)}
+
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
