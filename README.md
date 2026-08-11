@@ -1,50 +1,30 @@
-# RDR Weather Operations
+# RDR South Florida Radar
 
-A purpose-built unattended weather display for a 640 x 480 HUD or embedded screen.
+A single-purpose 456 x 257 radar panel for Yodeck.
 
-Default location: `26.06197904865014, -80.18787062578414` (Broward County, Florida).
+Default target location: `26.06197904865014, -80.18787062578414`.
 
-## Runtime design
+## Product
 
-The deployed product is plain HTML, CSS, and JavaScript. It has no build step, no framework, no package manager, no CDN JavaScript, no account requirement, no API key, and no secret configuration.
+The deployed page is intentionally radar-only. There are no forecast cards, current-condition widgets, alert rotations, headers, navigation controls, or generic weather dashboard screens.
 
-Anonymous public resources used by the browser:
+The visual hierarchy is:
 
-- Open-Meteo free/open-access forecast endpoint for current, hourly, and 15-minute guidance.
-- National Weather Service public alert endpoint for official local watches and warnings.
-- RainViewer free public radar metadata and radar imagery.
-- OpenStreetMap public raster tiles for geographic context.
+1. Edge-to-edge animated Miami KAMX NEXRAD base reflectivity.
+2. A precise target reticle for the configured location.
+3. A 17-pixel telemetry strip with live state, radar station, product, and the last successful image-load timestamp.
 
-The UI remains usable when any of those sources fail. Last successful weather and alert data are cached locally, map and radar failures degrade to a readable status panel, and the display never replaces the whole application with an error page.
+## Data source
 
-## Screens
+The browser loads NOAA/National Weather Service radar images directly:
 
-1. Current conditions
-2. Local radar
-3. Rain arrival
-4. Six-hour forecast
-5. Cloud trend
-6. Thunderstorm outlook
-7. Official alerts
-8. Tropical weather, included in automatic rotation only for a local tropical alert
+- `https://radar.weather.gov/ridge/standard/KAMX_loop.gif`
+- fallback frame: `https://radar.weather.gov/ridge/standard/KAMX_0.gif`
 
-Rotation changes based on rain, thunderstorm signals, official warnings, and tropical alerts.
-
-## Verification modes
-
-The application supports deterministic query-string modes for layout and failure testing without changing production behavior:
-
-- `?demo=clear`
-- `?demo=rain`
-- `?demo=storm`
-- `?demo=severe`
-- `?demo=hurricane`
-- `?offline=1`
-- `?screen=radar`
-- `?diag=1`
-
-Modes can be combined, for example `?demo=severe&screen=alerts&diag=1`.
+No account, API key, token, registration, package dependency, or paid service is required.
 
 ## Deployment
 
-GitHub Pages publishes directly from the repository `main` branch root.
+GitHub Pages publishes from `main` at `https://dmo18.github.io/rdr/`.
+
+The verification workflow probes the NOAA GIFs, renders the page locally at exactly 456 x 257, waits for the matching Pages deployment, then renders and verifies the public URL at exactly 456 x 257. Render screenshots are saved as a GitHub Actions artifact.
