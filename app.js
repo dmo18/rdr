@@ -13,7 +13,7 @@ const CONFIG = {
       url: 'https://radar.weather.gov/ridge/standard/KAMX_loop.gif',
       fallback: 'https://radar.weather.gov/ridge/standard/KAMX_0.gif',
       transform: 'translate(-53.2%, -41.6%) scale(1.34)',
-      reticle: { x: 57.9, y: 31.0 },
+      reticle: { x: 56.0, y: 35.7 },
       badge: 'Hollywood / Dania'
     },
     {
@@ -24,7 +24,7 @@ const CONFIG = {
       url: 'https://radar.weather.gov/ridge/standard/KAMX_loop.gif',
       fallback: 'https://radar.weather.gov/ridge/standard/KAMX_0.gif',
       transform: 'translate(-52.2%, -46.3%) scale(1.12)',
-      reticle: { x: 56.5, y: 37.2 },
+      reticle: { x: 54.7, y: 41.8 },
       badge: 'Broward / Miami-Dade'
     },
     {
@@ -35,7 +35,7 @@ const CONFIG = {
       url: 'https://radar.weather.gov/ridge/standard/KAMX_loop.gif',
       fallback: 'https://radar.weather.gov/ridge/standard/KAMX_0.gif',
       transform: 'translate(-50%, -50%) scale(0.96)',
-      reticle: { x: 55.6, y: 43.0 },
+      reticle: { x: 54.0, y: 47.0 },
       badge: 'South Florida'
     },
     {
