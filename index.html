@@ -2,65 +2,33 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#06101a">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#02070c">
   <meta name="color-scheme" content="dark">
   <title>RDR South Florida Radar</title>
-  <meta name="description" content="Single-screen high-resolution South Florida radar for Yodeck.">
+  <meta name="description" content="Multi-scale South Florida radar instrument for Yodeck.">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <main id="shell">
-    <section id="panel" data-version="2026.08.11.4" data-ready="false" data-local-radar="loading" data-regional-radar="loading" aria-label="South Florida radar">
-      <div id="localMap" class="map local-map">
-        <div id="localBase" class="tile-layer"></div>
-        <div id="localRadar" class="image-layer radar-stack"></div>
-        <div id="localWarnings" class="image-layer warnings-layer"></div>
-        <div class="map-tone"></div>
+    <section id="panel" data-version="2026.08.11.5" data-ready="false" data-view="home" data-home-rain="loading" aria-label="South Florida radar">
+      <div id="views" aria-live="off"></div>
 
-        <div class="range-ring ring-10"><span>10 MI</span></div>
-        <div class="range-ring ring-25"><span>25 MI</span></div>
+      <div class="home-pin" aria-label="Home location"><i></i><b></b></div>
 
-        <div class="home-marker" aria-label="Home location">
-          <i class="home-ring"></i><i class="home-cross h"></i><i class="home-cross v"></i><b></b>
-          <span>HOME</span>
-        </div>
-
-        <div class="radar-legend" aria-label="Radar reflectivity legend">
-          <span>LIGHT</span>
-          <i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><i class="l5"></i><i class="l6"></i>
-          <span>HEAVY</span>
-        </div>
-      </div>
-
-      <aside id="regional" class="regional" aria-label="Florida Gulf Cuba regional radar">
-        <div id="regionalBase" class="tile-layer"></div>
-        <div id="regionalConus" class="image-layer"></div>
-        <div id="regionalCarib" class="image-layer"></div>
-        <div id="regionalWarnings" class="image-layer warnings-layer"></div>
-        <div class="regional-tone"></div>
-        <div class="regional-home"><i></i></div>
-        <div class="regional-label">FL · GULF · CUBA</div>
-      </aside>
-
-      <div class="signal-panel">
-        <div class="signal-row"><span>HOME</span><b id="homeSignal">RADAR</b></div>
-        <div class="signal-row"><span>BROWARD</span><b>25 MI</b></div>
-        <div class="signal-row"><span>REGION</span><b>GULF → CUBA</b></div>
-      </div>
-
-      <footer class="statusbar">
-        <span class="live-dot"></span>
-        <span id="statusMode">HD REFLECTIVITY</span>
+      <footer id="telemetry" class="telemetry">
+        <span class="live-dot" aria-hidden="true"></span>
+        <strong id="viewName">HOME</strong>
         <span class="sep">·</span>
-        <span id="statusSource">MRMS QCD + KAMX</span>
-        <span class="sep">·</span>
-        <span id="statusAlerts">ALERTS ON</span>
+        <strong id="homeState">...</strong>
+        <span id="nearestRain" class="nearest"></span>
         <span class="spacer"></span>
-        <time id="statusTime">--:--</time>
+        <span id="loopRange">LOOP</span>
+        <span class="sep">·</span>
+        <time id="radarTime">--:--</time>
       </footer>
 
-      <div id="boot" class="boot"><strong>RADAR</strong><span>ACQUIRING HIGH-RESOLUTION DATA</span></div>
+      <div id="boot" class="boot"><b>RADAR</b><span>ACQUIRING</span></div>
     </section>
   </main>
   <script src="app.js"></script>
