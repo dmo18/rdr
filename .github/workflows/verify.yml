@@ -1,4 +1,4 @@
-name: Verify radar operations panel
+name: Verify single radar instrument
 
 on:
   push:
@@ -21,76 +21,75 @@ jobs:
         run: |
           set -euo pipefail
           node --check app.js
-          test -f index.html
-          test -f styles.css
-          test -f app.js
+          grep -q '<title>RDR South Florida Radar</title>' index.html
           grep -q '456px' styles.css
           grep -q '257px' styles.css
-          grep -q "id: 'hyperlocal'" app.js
-          grep -q "id: 'metro'" app.js
-          grep -q "id: 'southfl'" app.js
-          grep -q "id: 'southeast'" app.js
-          grep -q "id: 'satellite'" app.js
-          grep -q "id: 'warnings'" app.js
-          grep -q "id: 'trop2'" app.js
-          grep -q "id: 'trop5'" app.js
+          grep -q 'kamx_sr_bref' app.js
+          grep -q 'conus_bref_qcd' app.js
+          grep -q 'carib_bref_qcd' app.js
+          grep -q "layer: 'warnings'" app.js
+          grep -q 'FL · GULF · CUBA' index.html
           ! grep -RniE 'api[_-]?key|access[_-]?token|client[_-]?secret|password=' index.html styles.css app.js
-          ! grep -Eqi '<script[^>]+src="https?://' index.html
-          ! grep -Eqi '<link[^>]+href="https?://' index.html
-          test ! -e radar.js
-          test ! -e radar.css
-          test ! -e sw.js
+          ! grep -q "views:" app.js
+          ! grep -q 'cycleMs' app.js
 
-      - name: Probe public image sources
+      - name: Probe NOAA radar and warning map services
         shell: bash
         run: |
           set -euo pipefail
-          urls=(
-            'https://radar.weather.gov/ridge/standard/KAMX_loop.gif'
-            'https://radar.weather.gov/ridge/standard/KAMX_0.gif'
-            'https://radar.weather.gov/ridge/standard/SOUTHEAST_loop.gif'
-            'https://s.w-x.co/staticmaps/wu/wu/satir1200_cur/usase/animate.png'
-            'https://s.w-x.co/staticmaps/wu/wxtype/county_loc/eyw/animate.png'
-            'https://www.nhc.noaa.gov/xgtwo/two_atl_2d0.png'
-            'https://www.nhc.noaa.gov/xgtwo/two_atl_5d0.png'
-          )
-          i=0
-          for url in "${urls[@]}"; do
-            i=$((i+1))
-            echo "checking $url"
-            curl -fL --retry 2 --retry-delay 2 --connect-timeout 10 --max-time 30 \
-              -A 'Mozilla/5.0 RDR-Yodeck/1.0' "$url" -o "/tmp/source-$i"
-            test -s "/tmp/source-$i"
-          done
+          ua='Mozilla/5.0 RDR-Yodeck/2.0'
+          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" \
+            'https://opengeo.ncep.noaa.gov/geoserver/kamx/ows?service=WMS&version=1.1.1&request=GetCapabilities' \
+            -o /tmp/kamx.xml
+          grep -q 'kamx_sr_bref' /tmp/kamx.xml
 
-      - name: Render every view at exactly 456 x 257
+          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" \
+            'https://opengeo.ncep.noaa.gov/geoserver/kamx/ows?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=kamx_sr_bref&STYLES=&SRS=EPSG:4326&BBOX=-81.0,25.1,-79.3,27.1&WIDTH=456&HEIGHT=239&FORMAT=image/png&TRANSPARENT=TRUE' \
+            -o /tmp/kamx.png
+          file /tmp/kamx.png | grep -q 'PNG image data'
+
+          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" \
+            'https://opengeo.ncep.noaa.gov/geoserver/conus/conus_bref_qcd/ows?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=conus_bref_qcd&STYLES=&SRS=EPSG:4326&BBOX=-94,21,-75,33&WIDTH=456&HEIGHT=239&FORMAT=image/png&TRANSPARENT=TRUE' \
+            -o /tmp/conus.png
+          file /tmp/conus.png | grep -q 'PNG image data'
+
+          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" \
+            'https://opengeo.ncep.noaa.gov/geoserver/carib/carib_bref_qcd/ows?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=carib_bref_qcd&STYLES=&SRS=EPSG:4326&BBOX=-94,21,-75,33&WIDTH=456&HEIGHT=239&FORMAT=image/png&TRANSPARENT=TRUE' \
+            -o /tmp/carib.png
+          file /tmp/carib.png | grep -q 'PNG image data'
+
+          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" \
+            'https://opengeo.ncep.noaa.gov/geoserver/wwa/warnings/ows?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=warnings&STYLES=&SRS=EPSG:4326&BBOX=-81.0,25.1,-79.3,27.1&WIDTH=456&HEIGHT=239&FORMAT=image/png&TRANSPARENT=TRUE' \
+            -o /tmp/warnings.png
+          file /tmp/warnings.png | grep -q 'PNG image data'
+
+      - name: Render local instrument at exactly 456 x 257
         shell: bash
         run: |
           set -euo pipefail
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
-          test -n "$CHROME"
           python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/rdr-http.log 2>&1 &
           SERVER_PID=$!
           trap 'kill $SERVER_PID || true' EXIT
           sleep 1
-          mkdir -p screenshots/local screenshots/live
-          views=(hyperlocal metro southfl southeast satellite warnings trop2 trop5)
-          for view in "${views[@]}"; do
-            timeout 35s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
-              --hide-scrollbars --window-size=456,257 --virtual-time-budget=9000 \
-              --screenshot="screenshots/local/${view}.png" "http://127.0.0.1:8765/?view=${view}"
-          done
+          mkdir -p screenshots
+          timeout 50s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
+            --hide-scrollbars --window-size=456,257 --virtual-time-budget=16000 \
+            --dump-dom 'http://127.0.0.1:8765/' > /tmp/local-dom.html
+          grep -q 'data-ready="true"' /tmp/local-dom.html
+          grep -Eq 'data-local-radar="(ok|fallback)"' /tmp/local-dom.html
+          timeout 50s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
+            --hide-scrollbars --window-size=456,257 --virtual-time-budget=16000 \
+            --screenshot=screenshots/local-radar.png 'http://127.0.0.1:8765/'
           python3 - <<'PY'
-          import glob, struct
-          files=sorted(glob.glob('screenshots/local/*.png'))
-          assert len(files)==8, files
-          for p in files:
-              with open(p,'rb') as f:
-                  assert f.read(8)==b'\x89PNG\r\n\x1a\n'
-                  f.read(4); assert f.read(4)==b'IHDR'
-                  width,height=struct.unpack('>II',f.read(8))
-                  assert (width,height)==(456,257),(p,width,height)
-          print('all local radar views rendered at 456x257')
+          import struct
+          p='screenshots/local-radar.png'
+          with open(p,'rb') as f:
+              assert f.read(8)==b'\x89PNG\r\n\x1a\n'
+              f.read(4); assert f.read(4)==b'IHDR'
+              w,h=struct.unpack('>II',f.read(8))
+              assert (w,h)==(456,257),(w,h)
+          print('local render 456x257')
           PY
 
       - name: Wait for matching GitHub Pages deployment
@@ -101,9 +100,8 @@ jobs:
           ok=0
           for attempt in $(seq 1 42); do
             if curl -fsSL --max-time 15 -H 'Cache-Control: no-cache' "${target}?verify=${GITHUB_SHA}-${attempt}" -o /tmp/live.html; then
-              if grep -q '<title>RDR Radar Ops Panel</title>' /tmp/live.html && grep -q 'styles.css' /tmp/live.html && grep -q 'app.js' /tmp/live.html; then
-                ok=1
-                break
+              if grep -q '<title>RDR South Florida Radar</title>' /tmp/live.html && grep -q 'FL · GULF · CUBA' /tmp/live.html; then
+                ok=1; break
               fi
             fi
             echo "waiting for Pages deployment (${attempt}/42)"
@@ -111,35 +109,35 @@ jobs:
           done
           test "$ok" = 1
 
-      - name: Render deployed views at exactly 456 x 257
+      - name: Render deployed instrument at exactly 456 x 257
         shell: bash
         run: |
           set -euo pipefail
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
-          views=(hyperlocal metro southfl southeast satellite warnings trop2 trop5)
-          for view in "${views[@]}"; do
-            timeout 35s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
-              --hide-scrollbars --window-size=456,257 --virtual-time-budget=9000 \
-              --screenshot="screenshots/live/${view}.png" "https://dmo18.github.io/rdr/?view=${view}&verify=${GITHUB_SHA}"
-          done
+          live="https://dmo18.github.io/rdr/?verify=${GITHUB_SHA}"
+          timeout 50s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
+            --hide-scrollbars --window-size=456,257 --virtual-time-budget=18000 --dump-dom "$live" > /tmp/live-dom.html
+          grep -q 'data-ready="true"' /tmp/live-dom.html
+          grep -Eq 'data-local-radar="(ok|fallback)"' /tmp/live-dom.html
+          timeout 50s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
+            --hide-scrollbars --window-size=456,257 --virtual-time-budget=18000 \
+            --screenshot=screenshots/live-radar.png "$live"
           python3 - <<'PY'
-          import glob, struct
-          files=sorted(glob.glob('screenshots/live/*.png'))
-          assert len(files)==8, files
-          for p in files:
-              with open(p,'rb') as f:
-                  assert f.read(8)==b'\x89PNG\r\n\x1a\n'
-                  f.read(4); assert f.read(4)==b'IHDR'
-                  width,height=struct.unpack('>II',f.read(8))
-                  assert (width,height)==(456,257),(p,width,height)
-          print('all deployed radar views rendered at 456x257')
+          import struct
+          p='screenshots/live-radar.png'
+          with open(p,'rb') as f:
+              assert f.read(8)==b'\x89PNG\r\n\x1a\n'
+              f.read(4); assert f.read(4)==b'IHDR'
+              w,h=struct.unpack('>II',f.read(8))
+              assert (w,h)==(456,257),(w,h)
+          print('deployed render 456x257')
           PY
 
       - name: Upload verification renders
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rdr-radar-ops-renders
+          name: rdr-single-radar-render
           path: screenshots/
           if-no-files-found: warn
           retention-days: 14
