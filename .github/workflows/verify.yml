@@ -30,6 +30,7 @@ jobs:
           grep -q 'template!==41' radar.js
           grep -q 'meta.bits===24' radar.js
           grep -q 'function localCentroid' radar.js
+          grep -q 'function qvSpeedMph' context.js
           grep -q 'function eRadarCanvas' enterprise-map.js
           grep -q 'function eWarmCurrentView' enterprise-ui.js
           test ! -e broadcast.js
@@ -47,9 +48,6 @@ jobs:
           key=$(grep -o '<Key>[^<]*\.grib2\.gz</Key>' /tmp/list.xml | tail -1 | sed 's#</\?Key>##g')
           test -n "$key"
           curl -fsSI -H 'Origin: https://dmo18.github.io' "https://noaa-mrms-pds.s3.amazonaws.com/$key" | grep -qi 'access-control-allow-origin: \*'
-          surface='https://mapservices.weather.noaa.gov/vector/rest/services/obs/surface_obs/MapServer/160/query?where=1%3D1&geometry=-80.46%2C25.84%2C-79.96%2C26.30&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326&spatialRel=esriSpatialRelIntersects&outFields=stationname%2Ctimeobs%2Cwinddir%2Cwindspeed&returnGeometry=true&f=geojson'
-          curl -fsSL "$surface" -o /tmp/surface.json
-          grep -q '"features"' /tmp/surface.json
           echo "$key"
 
       - name: Install verification dependencies
@@ -74,13 +72,13 @@ jobs:
               const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const browserErrors=[];page.on('pageerror',e=>browserErrors.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push('console: '+m.text())});
               const t0=Date.now(),sep=base.includes('?')?'&':'?';await page.goto(`${base}${sep}view=${id}&verify=1&ci=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
               await page.waitForFunction(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get(id);return p?.dataset?.version==='2026.08.12.8'&&p?.dataset?.layout==='enterprise-v8'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(s.surface?.get(id)?.length||0)>=1&&(b?.states?.length||0)>=1},{timeout:180000,polling:250},id);
-              const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);const coldPrepMs=await page.evaluate(()=>eWarmCurrentView());await page.evaluate(()=>{window.__RDR__.perf.samples=[]});await new Promise(r=>setTimeout(r,2500));
-              const diag=await page.evaluate(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s.boundaries.get(id),latest=s.frames.at(-1)?.time;return{id,dataset:{...p.dataset},frames:s.frames.length,surface:s.surface.get(id)?.length||0,boundaries:{states:b?.states?.length||0,counties:b?.counties?.length||0},latestAgeMs:latest?Date.now()-new Date(latest).getTime():null,home:s.home,weather:s.weather,errors:s.errors,samples:[...(s.perf?.samples||[])],viewport:[innerWidth,innerHeight],panel:[p.getBoundingClientRect().width,p.getBoundingClientRect().height]};},id);
-              diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.coldPrepMs=coldPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=browserErrors;all[id]=diag;
+              const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);const incrementalPrepMs=await page.evaluate(()=>eWarmCurrentView());await page.evaluate(()=>{window.__RDR__.perf.samples=[]});await new Promise(r=>setTimeout(r,2500));
+              const diag=await page.evaluate(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s.boundaries.get(id),latest=s.frames.at(-1)?.time;return{id,dataset:{...p.dataset},frames:s.frames.length,surface:s.surface.get(id)?.length||0,boundaries:{states:b?.states?.length||0,counties:b?.counties?.length||0},latestAgeMs:latest?Date.now()-new Date(latest).getTime():null,startupPrepMs:s.startupPrepMs,home:s.home,weather:s.weather,errors:s.errors,samples:[...(s.perf?.samples||[])],viewport:[innerWidth,innerHeight],panel:[p.getBoundingClientRect().width,p.getBoundingClientRect().height]};},id);
+              diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.incrementalPrepMs=incrementalPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=browserErrors;all[id]=diag;
               await (await page.$('#panel')).screenshot({path:`${out}/${id}.png`});fs.writeFileSync(`${out}/${id}.json`,JSON.stringify(diag,null,2));
-              if(browserErrors.length)throw new Error(`browser ${id}: ${JSON.stringify(diag)}`);if(!(diag.latestAgeMs>=0&&diag.latestAgeMs<15*60*1000))throw new Error(`stale ${id}: ${JSON.stringify(diag)}`);if(diag.viewport[0]!==456||diag.viewport[1]!==257||diag.panel[0]!==456||diag.panel[1]!==257)throw new Error(`geometry ${id}: ${JSON.stringify(diag)}`);if(diag.startupPaint.max!=null&&diag.startupPaint.max>250)throw new Error(`startup ${id}: ${JSON.stringify(diag.startupPaint)}`);if(diag.coldPrepMs>350)throw new Error(`cold prep ${id}: ${JSON.stringify(diag)}`);if(diag.paint.p95!=null&&diag.paint.p95>16)throw new Error(`warm ${id}: ${JSON.stringify(diag.paint)}`);await page.close();
+              if(browserErrors.length)throw new Error(`browser ${id}: ${JSON.stringify(diag)}`);if(!(diag.latestAgeMs>=0&&diag.latestAgeMs<15*60*1000))throw new Error(`stale ${id}: ${JSON.stringify(diag)}`);if(diag.viewport[0]!==456||diag.viewport[1]!==257||diag.panel[0]!==456||diag.panel[1]!==257)throw new Error(`geometry ${id}: ${JSON.stringify(diag)}`);if(diag.startupPaint.max!=null&&diag.startupPaint.max>250)throw new Error(`startup paint ${id}: ${JSON.stringify(diag)}`);if(diag.startupPrepMs!=null&&diag.startupPrepMs>350)throw new Error(`startup prep ${id}: ${JSON.stringify(diag)}`);if(diag.incrementalPrepMs>80)throw new Error(`incremental prep ${id}: ${JSON.stringify(diag)}`);if(diag.paint.p95!=null&&diag.paint.p95>16)throw new Error(`warm ${id}: ${JSON.stringify(diag.paint)}`);if(diag.weather?.windMph!=null&&diag.weather.windMph>80)throw new Error(`implausible wind ${id}: ${JSON.stringify(diag.weather)}`);await page.close();
             }
-          } finally { await browser.close(); }
+          } finally {await browser.close()}
           fs.writeFileSync(`${out}/metrics.json`,JSON.stringify(all,null,2));
           JS
 
@@ -126,10 +124,10 @@ jobs:
           try{
             const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const browserErrors=[];page.on('pageerror',e=>browserErrors.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push('console: '+m.text())});
             const t0=Date.now();await page.goto(`https://dmo18.github.io/rdr/?view=florida&full=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});await page.waitForFunction(()=>{const s=window.__RDR__,b=s?.boundaries?.get('florida'),p=document.querySelector('#panel');return p?.dataset?.version==='2026.08.12.8'&&p?.dataset?.layout==='enterprise-v8'&&p?.dataset?.radar==='live'&&s?.frames?.length>=4&&s?.severe?.lightning&&s?.severe?.mesh&&(b?.states?.length||0)>=1},{timeout:240000,polling:500});
-            const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);const coldPrepMs=await page.evaluate(()=>eWarmCurrentView());await page.evaluate(()=>{window.__RDR__.perf.samples=[]});await new Promise(r=>setTimeout(r,3000));const diag=await page.evaluate(()=>{const s=window.__RDR__;return{frames:s.frames.length,severe:{lightning:!!s.severe.lightning,mesh:!!s.severe.mesh},errors:s.errors,samples:[...(s.perf?.samples||[])],dataset:{...document.querySelector('#panel').dataset},viewport:[innerWidth,innerHeight]}});diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.coldPrepMs=coldPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=browserErrors;
+            const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);const incrementalPrepMs=await page.evaluate(()=>eWarmCurrentView());await page.evaluate(()=>{window.__RDR__.perf.samples=[]});await new Promise(r=>setTimeout(r,3000));const diag=await page.evaluate(()=>{const s=window.__RDR__;return{frames:s.frames.length,startupPrepMs:s.startupPrepMs,severe:{lightning:!!s.severe.lightning,mesh:!!s.severe.mesh},weather:s.weather,errors:s.errors,samples:[...(s.perf?.samples||[])],dataset:{...document.querySelector('#panel').dataset},viewport:[innerWidth,innerHeight]}});diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.incrementalPrepMs=incrementalPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=browserErrors;
             await (await page.$('#panel')).screenshot({path:'/tmp/rdr-v8-verify/live/full-runtime.png'});fs.writeFileSync('/tmp/rdr-v8-verify/live/full-runtime.json',JSON.stringify(diag,null,2));
-            if(browserErrors.length)throw new Error(JSON.stringify(diag));if(diag.errors.some(e=>/ReferenceError|SyntaxError|invalid GRIB|unsupported PNG|unsupported GRIB/i.test(e)))throw new Error(`runtime decoder: ${JSON.stringify(diag)}`);if(diag.startupPaint.max!=null&&diag.startupPaint.max>300)throw new Error(`startup: ${JSON.stringify(diag)}`);if(diag.coldPrepMs>450)throw new Error(`cold prep: ${JSON.stringify(diag)}`);if(diag.paint.p95!=null&&diag.paint.p95>16)throw new Error(`warm p95: ${JSON.stringify(diag)}`);
-          } finally { await browser.close(); }
+            if(browserErrors.length)throw new Error(JSON.stringify(diag));if(diag.errors.some(e=>/ReferenceError|SyntaxError|invalid GRIB|unsupported PNG|unsupported GRIB/i.test(e)))throw new Error(`runtime decoder: ${JSON.stringify(diag)}`);if(diag.startupPaint.max!=null&&diag.startupPaint.max>300)throw new Error(`startup paint: ${JSON.stringify(diag)}`);if(diag.startupPrepMs!=null&&diag.startupPrepMs>350)throw new Error(`startup prep: ${JSON.stringify(diag)}`);if(diag.incrementalPrepMs>450)throw new Error(`incremental prep: ${JSON.stringify(diag)}`);if(diag.paint.p95!=null&&diag.paint.p95>16)throw new Error(`warm p95: ${JSON.stringify(diag)}`);
+          } finally {await browser.close()}
           JS
           node .verify-v8-full.mjs
 
@@ -152,11 +150,10 @@ jobs:
           full=Image.open(root/'live'/'full-runtime.png').convert('RGB');assert full.size==(456,257)
           for v in views+['full-runtime']:
               Image.open(root/'live'/f'{v}.png').convert('RGB').resize((1824,1028),Image.Resampling.NEAREST).save(root/'live'/f'{v}-4x.png')
-          lines=[]
-          metrics=json.load(open(root/'live'/'metrics.json'))
+          metrics=json.load(open(root/'live'/'metrics.json'));lines=[]
           for v in views:
-              d=metrics[v];lines.append(f"{v}: ready={d['readyMs']}ms startupMax={d['startupPaint']['max']:.1f}ms coldPrep={d['coldPrepMs']:.1f}ms warmP95={d['paint']['p95']:.1f}ms warmMax={d['paint']['max']:.1f}ms frames={d['frames']} surface={d['surface']} states={d['boundaries']['states']}")
-          d=json.load(open(root/'live'/'full-runtime.json'));lines.append(f"full-runtime: ready={d['readyMs']}ms startupMax={d['startupPaint']['max']:.1f}ms coldPrep={d['coldPrepMs']:.1f}ms warmP95={d['paint']['p95']:.1f}ms warmMax={d['paint']['max']:.1f}ms frames={d['frames']} lightning={d['severe']['lightning']} mesh={d['severe']['mesh']}")
+              d=metrics[v];lines.append(f"{v}: ready={d['readyMs']}ms startupPaintMax={d['startupPaint']['max']:.1f}ms startupPrep={d['startupPrepMs']:.1f}ms incrementalPrep={d['incrementalPrepMs']:.1f}ms warmP95={d['paint']['p95']:.1f}ms warmMax={d['paint']['max']:.1f}ms frames={d['frames']} surface={d['surface']} states={d['boundaries']['states']} wind={d.get('weather',{}).get('windMph')}")
+          d=json.load(open(root/'live'/'full-runtime.json'));lines.append(f"full-runtime: ready={d['readyMs']}ms startupPaintMax={d['startupPaint']['max']:.1f}ms startupPrep={d['startupPrepMs']:.1f}ms incrementalPrep={d['incrementalPrepMs']:.1f}ms warmP95={d['paint']['p95']:.1f}ms warmMax={d['paint']['max']:.1f}ms frames={d['frames']} lightning={d['severe']['lightning']} mesh={d['severe']['mesh']}")
           (root/'live'/'performance.txt').write_text('\n'.join(lines)+'\n')
           PY
 
