@@ -4,6 +4,8 @@ const E_ALERT_COLORS={
   TOR:'#ff4b4b',SVR:'#ffe044',FFW:'#46d46b',FLD:'#45c978',SMW:'#f0a000',SQW:'#c71585',
   HUR:'#ff4fa3',TRP:'#ff7b62',SUR:'#ff6b6b',WRN:'#ff8a4c',WCH:'#aa91ff',ADV:'#62c9ff',ALERT:'#9eb1ba'
 };
+const E_ALERT_VIEW_CACHE=new Map();
+let E_LOCAL_ALERT_CACHE={key:'',value:null};
 
 function alertSig(f){return String(f?.properties?.sig||'').trim().toUpperCase()}
 function alertName(f){const p=f?.properties||{};return String(p.prod_type||p.event||'Weather Alert').trim()||'Weather Alert'}
@@ -30,7 +32,13 @@ function alertDisplayable(f){if(!f?.geometry||alertExpired(f))return false;const
 function alertVisibleInView(f,def=view()){if(!alertDisplayable(f))return false;const m=alertMeta(f);if(m.isAdvisory&&['florida','regional'].includes(def.id)&&!containsPoint(f.geometry,CFG.home))return false;return true}
 function warningCode(f){return alertMeta(f).code}
 function alertPriority(f){return alertMeta(f).priority}
-function localAlert(){const a=[];for(const f of state.warnings.values())if(alertDisplayable(f)&&containsPoint(f.geometry,CFG.home))a.push(f);a.sort((x,y)=>alertPriority(y)-alertPriority(x));return a[0]||null}
+function alertCacheKey(){return`${state.alertRevision||0}|${state.warnings.size}`}
+function invalidateAlertCache(){E_ALERT_VIEW_CACHE.clear();E_LOCAL_ALERT_CACHE={key:'',value:null}}
+function localAlert(){
+  const key=alertCacheKey();if(E_LOCAL_ALERT_CACHE.key===key)return E_LOCAL_ALERT_CACHE.value;const a=[];
+  for(const f of state.warnings.values())if(alertDisplayable(f)&&containsPoint(f.geometry,CFG.home))a.push(f);a.sort((x,y)=>alertPriority(y)-alertPriority(x));
+  const value=a[0]||null;E_LOCAL_ALERT_CACHE={key,value};return value;
+}
 
 async function alertArcQuery(layer,bbox){
   const[w,s,e,n]=bbox,p=new URLSearchParams({where:"sig IN ('W','A','Y')",geometry:`${w},${s},${e},${n}`,geometryType:'esriGeometryEnvelope',inSR:'4326',outSR:'4326',spatialRel:'esriSpatialRelIntersects',outFields:'objectid,prod_type,msg_type,phenom,url,expiration,onset,ends,issuance,sig,wfo,event,cap_id',returnGeometry:'true',f:'geojson'}),j=await fetchJson(`${CFG.warnings}/${layer}/query?${p}`);return j?.features||[]
@@ -41,12 +49,13 @@ async function loadWarnings(){
   if(!success){state.errors.push(`alerts: ${settled.map(x=>x.reason||'unavailable').join(' | ')}`);panel.dataset.alerts='unavailable';render();return}
   const urgent=settled[0].status==='fulfilled'?settled[0].value:[],broad=settled[1].status==='fulfilled'?settled[1].value:[],merged=new Map();let i=0;
   for(const f of broad.concat(urgent)){if(!alertDisplayable(f))continue;merged.set(alertFeatureKey(f,i++),f)}
-  state.warnings.clear();for(const[k,f]of merged)state.warnings.set(k,f);panel.dataset.alerts=String(state.warnings.size);render();
+  state.warnings.clear();for(const[k,f]of merged)state.warnings.set(k,f);state.alertRevision=(state.alertRevision||0)+1;invalidateAlertCache();panel.dataset.alerts=String(state.warnings.size);render();
 }
 
 function eWarningsInView(){
-  const out=[];for(const f of state.warnings.values()){if(!alertVisibleInView(f,view()))continue;const box=eGeomBounds(f.geometry);if(!eBoxIntersects(box,view().bbox))continue;const c=geometryCenter(f.geometry)||{lon:(box.w+box.e)/2,lat:(box.s+box.n)/2},meta=alertMeta(f);out.push({f,c,code:meta.code,meta})}
-  return out.sort((a,b)=>b.meta.priority-a.meta.priority||a.meta.name.localeCompare(b.meta.name));
+  const def=view(),key=`${alertCacheKey()}|${def.id}`;if(E_ALERT_VIEW_CACHE.has(key))return E_ALERT_VIEW_CACHE.get(key);const out=[];
+  for(const f of state.warnings.values()){if(!alertVisibleInView(f,def))continue;const box=eGeomBounds(f.geometry);if(!eBoxIntersects(box,def.bbox))continue;const c=geometryCenter(f.geometry)||{lon:(box.w+box.e)/2,lat:(box.s+box.n)/2},meta=alertMeta(f);out.push({f,c,code:meta.code,meta})}
+  out.sort((a,b)=>b.meta.priority-a.meta.priority||a.meta.name.localeCompare(b.meta.name));E_ALERT_VIEW_CACHE.set(key,out);while(E_ALERT_VIEW_CACHE.size>12)E_ALERT_VIEW_CACHE.delete(E_ALERT_VIEW_CACHE.keys().next().value);return out;
 }
 function eHazardColor(code){return E_ALERT_COLORS[code]||E_ALERT_COLORS.ALERT}
 function eDrawWarnings(){
