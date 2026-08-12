@@ -136,31 +136,46 @@ function localCentroid(frame,center,radius=65,threshold=18){
   return count>5?{lat:slat/sw,lon:slon/sw,count}:null;
 }
 function deriveMotion(nearest=null){
-  if(state.frames.length<2)return null;const a=state.frames.at(-2),b=state.frames.at(-1);let ca=null,cb=null;
+  if(state.frames.length<2)return null;const a=state.frames[state.frames.length-2],b=state.frames[state.frames.length-1];let ca=null,cb=null;
   if(nearest){ca=localCentroid(a,nearest);cb=localCentroid(b,nearest)}
   if(!ca||!cb){ca=centroid(a);cb=centroid(b)}if(!ca||!cb)return null;
   const hours=(b.time-a.time)/3600000;if(hours<=0)return null;const miles=haversineMiles(ca,cb),mph=miles/hours;if(mph<2||mph>90)return null;const brg=bearing(ca,cb);
   return{from:ca,to:cb,mph:Math.round(mph),bearing:brg,dir:dir8(brg)};
 }
 function deriveHome(){
-  const f=state.frames.at(-1);if(!f)return;
+  const f=state.frames.length?state.frames[state.frames.length-1]:null;if(!f)return;
   const dbz=sampleHome(f),nearest=dbz<5?nearestRain(f):null,motion=deriveMotion(nearest);let eta=null;
   if(motion&&nearest){const toward=bearing(nearest,CFG.home),diff=angleDiff(motion.bearing,toward),closing=motion.mph*Math.cos(diff*Math.PI/180),mins=nearest.miles/Math.max(1,closing)*60;if(diff<55&&closing>3&&nearest.miles<150&&mins>0&&mins<180)eta={minutes:Math.round(mins),miles:nearest.miles}}
   state.motion=motion;state.home={dbz,status:classifyDbz(dbz),nearest,eta};
 }
 
+async function backfillRadar(){
+  if(state.radarBackfilling||!state.pendingRadarKeys||!state.pendingRadarKeys.length)return;
+  state.radarBackfilling=true;
+  try{
+    const queue=state.pendingRadarKeys.splice(0);
+    for(const key of queue){
+      if(state.frames.some(f=>f.key===key))continue;
+      try{
+        const f=await loadFieldKey(key,'radar');state.frames.push(f);state.frames.sort((a,b)=>a.time-b.time);state.frames=state.frames.slice(-5);state.cursor=state.frames.length-1;deriveHome();render();
+        await new Promise(resolve=>setTimeout(resolve,50));
+      }catch(e){state.errors.push(`radar backfill: ${e}`)}
+    }
+  }finally{state.radarBackfilling=false}
+}
+
 async function pollRadar({initial=false}={}){
   if(state.radarLoading)return;state.radarLoading=true;
   try{
-    const keys=await recentKeys(CFG.radarProduct,5),have=new Set(state.frames.map(f=>f.key)),newest=keys.at(-1);
+    const keys=await recentKeys(CFG.radarProduct,5),have=new Set(state.frames.map(f=>f.key)),newest=keys[keys.length-1];
     if(newest&&!have.has(newest)){
       const f=await loadFieldKey(newest,'radar');state.frames.push(f);state.frames.sort((a,b)=>a.time-b.time);state.frames=state.frames.slice(-5);state.cursor=state.frames.length-1;deriveHome();render();
       if(initial){panel.dataset.radar='live'}
     }
     state.lastListError=null;
     if(initial&&!verifyMode){
-      const back=keys.slice(0,-1).slice(-3).reverse();
-      for(const key of back){if(state.frames.some(f=>f.key===key))continue;try{const f=await loadFieldKey(key,'radar');state.frames.push(f);state.frames.sort((a,b)=>a.time-b.time);state.frames=state.frames.slice(-5);state.cursor=state.frames.length-1;deriveHome();render()}catch(e){state.errors.push(String(e))}}
+      state.pendingRadarKeys=keys.slice(0,-1).slice(-3).reverse().filter(key=>!state.frames.some(f=>f.key===key));
+      setTimeout(()=>backfillRadar().catch(e=>state.errors.push(String(e))),900);
     }
   }catch(e){state.lastListError=e;state.errors.push(String(e));panel.dataset.radar=state.frames.length?'degraded':'unavailable';render()}
   finally{state.radarLoading=false;panel.dataset.freshness=freshness()}
@@ -171,7 +186,7 @@ function fieldMax(field,id=view().id){
 }
 async function loadSevere(){
   for(const [name,product] of Object.entries(CFG.severeProducts)){
-    try{const keys=await recentKeys(product,1),key=keys.at(-1);if(!key||state.severe[name]?.key===key)continue;state.severe[name]=await loadFieldKey(key,name)}
+    try{const keys=await recentKeys(product,1),key=keys[keys.length-1];if(!key||state.severe[name]?.key===key)continue;state.severe[name]=await loadFieldKey(key,name)}
     catch(e){state.errors.push(`${name}: ${e}`)}
   }
   render();
