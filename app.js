@@ -1,7 +1,7 @@
 'use strict';
 
 async function showView(index){
-  state.view=(index+CFG.views.length)%CFG.views.length;panel.dataset.view=view().id;state.cursor=Math.max(0,state.frames.length-1);state.transition=null;state.windParticles=[];state.windView=null;render();
+  state.view=(index+CFG.views.length)%CFG.views.length;panel.dataset.view=view().id;state.cursor=Math.max(0,state.frames.length-1);state.transition=null;render();
   await Promise.allSettled([loadBoundaries(view()),loadSurfaceObs(view())]);render();
 }
 function scheduleRotation(){
