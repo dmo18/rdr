@@ -1,0 +1,154 @@
+name: Verify RDR vNext UX
+
+on:
+  push:
+    branches: ['qa/vnext-v10', main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vnext:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Static UX checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'data-ui="vnext-2026.08.12.1"' index.html
+          grep -q '<script src="vnext.js"></script>' index.html
+          grep -q "cityLabelBoxes=0" vnext.js
+          grep -q "lightningSymbols" vnext.js
+          grep -q "motionArrows" vnext.js
+          grep -q "mapAlertBox=false" vnext.js
+          grep -q "advisoryLabels=0" vnext.js
+          node --check vnext.js
+          node --check alerts.js
+          node --check hidpi.js
+          node --check app.js
+
+      - name: Install browser QA
+        shell: bash
+        run: |
+          npm install --no-save --package-lock=false puppeteer-core >/dev/null
+          python3 -m pip install --disable-pip-version-check pillow >/dev/null
+
+      - name: Serve candidate locally
+        shell: bash
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/rdr-vnext-http.log 2>&1 &
+          sleep 1
+
+      - name: Render and exercise vNext UX locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          mkdir -p /tmp/rdr-vnext/local
+          cat > .vnext-verify.mjs <<'JS'
+          import puppeteer from 'puppeteer-core';
+          import fs from 'node:fs';
+          const base=process.env.RDR_URL||'http://127.0.0.1:8765/';
+          const outDir=process.env.RDR_OUT||'/tmp/rdr-vnext/local';
+          const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
+          const waitReady=(page,id)=>page.waitForFunction(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get(id);return p?.dataset?.ui==='vnext-2026.08.12.1'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(b?.states?.length||0)>=1},{timeout:180000,polling:250},id);
+          const watch=page=>{const a=[];page.on('pageerror',e=>a.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error')a.push('console: '+m.text())});return a};
+          const diag=page=>page.evaluate(()=>{const p=document.querySelector('#panel'),c=document.querySelector('#display'),r=p.getBoundingClientRect(),s=window.__RDR__;return{viewport:[innerWidth,innerHeight],panel:[r.width,r.height],backing:[c.width,c.height],dataset:{...p.dataset},ux:{...s.ux},alertUi:{...(s.alertUi||{})},frames:s.frames.length,errors:[...s.errors]}});
+          try{
+            const all={views:{}};
+            for(const id of ['home','metro','florida','regional']){
+              const page=await browser.newPage();const be=watch(page);await page.setViewport({width:456,height:257,deviceScaleFactor:1});await page.goto(`${base}?view=${id}&verify=1&vnext=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});await waitReady(page,id);await new Promise(r=>setTimeout(r,700));const d=await diag(page);d.browserErrors=be;
+              if(d.viewport[0]!==456||d.viewport[1]!==257||d.backing[0]!==456||d.backing[1]!==257)throw new Error(`geometry ${id}: ${JSON.stringify(d)}`);
+              if(d.ux.cityLabelBoxes!==0||d.ux.mapAlertBox!==false||d.ux.advisoryLabels!==0||d.ux.alertPanel!=='header-footer')throw new Error(`UX contract ${id}: ${JSON.stringify(d)}`);
+              if((d.ux.cityLabels||0)<1)throw new Error(`city labels ${id}: ${JSON.stringify(d)}`);
+              if(be.length)throw new Error(`browser ${id}: ${JSON.stringify(be)}`);
+              await page.screenshot({path:`${outDir}/${id}.png`,fullPage:true});all.views[id]=d;await page.close();
+            }
+
+            const page=await browser.newPage();const be=watch(page);await page.setViewport({width:456,height:257,deviceScaleFactor:1});await page.goto(`${base}?view=florida&verify=1&features=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});await waitReady(page,'florida');
+            const features=await page.evaluate(()=>{
+              const N=CFG.width*CFG.height,blank=()=>{const a=new Int16Array(N);a.fill(MISSING);return a},blob=(cx,cy)=>{const a=blank();for(let y=Math.max(0,cy-14);y<=Math.min(CFG.height-1,cy+14);y++)for(let x=Math.max(0,cx-14);x<=Math.min(CFG.width-1,cx+14);x++){const d=Math.hypot(x-cx,y-cy);if(d<=14)a[y*CFG.width+x]=Math.max(300,Math.round(620-d*18))}return a},field=(cx,cy)=>({home:blob(cx,cy),metro:blob(cx,cy),florida:blob(cx,cy),regional:blob(cx,cy)}),box=(w,s,e,n)=>({type:'Polygon',coordinates:[[[w,s],[e,s],[e,n],[w,n],[w,s]]]});
+              const now=Date.now();state.view=2;panel.dataset.view='florida';state.frames=[{key:'qa-old',time:new Date(now-600000),views:field(280,105)},{key:'qa-new',time:new Date(now-300000),views:field(282,104)}];state.cursor=1;state.transition=null;
+              const la=blank();for(let y=80;y<=100;y++)for(let x=305;x<=325;x++)if(Math.hypot(x-315,y-90)<10)la[y*CFG.width+x]=850;state.severe.lightning={key:'qa-lightning',time:new Date(now),views:{home:la,metro:la,florida:la,regional:la}};
+              state.warnings.clear();state.warnings.set('qa-svr',{type:'Feature',properties:{cap_id:'qa-svr',prod_type:'Severe Thunderstorm Warning',phenom:'SV',sig:'W',expiration:new Date(now+2700000).toISOString()},geometry:box(-82.2,27.6,-81.6,28.2)});state.warnings.set('qa-adv',{type:'Feature',properties:{cap_id:'qa-adv',prod_type:'Heat Advisory',phenom:'HT',sig:'Y',expiration:new Date(now+3600000).toISOString()},geometry:box(-80.35,25.9,-80.1,26.2)});state.alertRevision=(state.alertRevision||0)+1;invalidateAlertCache();V_MOTION_CACHE.clear();eCellCache.clear();ePeakCache.clear();render(performance.now());return{ux:{...state.ux},alertUi:{...state.alertUi},alerts:eWarningsInView().map(x=>x.meta.code),tracks:vStormTracks().length};
+            });
+            features.browserErrors=be;
+            if((features.ux.lightningSymbols||0)<1)throw new Error(`lightning not rendered: ${JSON.stringify(features)}`);
+            if((features.ux.motionArrows||0)<1||features.tracks<1)throw new Error(`motion not rendered: ${JSON.stringify(features)}`);
+            if(features.ux.cityLabelBoxes!==0||features.ux.advisoryLabels!==0||features.ux.mapAlertBox!==false)throw new Error(`overlay regression: ${JSON.stringify(features)}`);
+            if((features.alertUi.boundaries||0)<2||!features.alerts.includes('SVR')||!features.alerts.includes('ADV'))throw new Error(`alert boundaries: ${JSON.stringify(features)}`);
+            if(be.length)throw new Error(`feature browser errors: ${JSON.stringify(be)}`);
+            await page.screenshot({path:`${outDir}/features.png`,fullPage:true});await page.close();
+
+            const hd=await browser.newPage(),hdErrors=watch(hd);await hd.setViewport({width:1600,height:900,deviceScaleFactor:1});await hd.goto(`${base}?view=florida&verify=1&hd=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});await waitReady(hd,'florida');await new Promise(r=>setTimeout(r,900));const hdDiag=await diag(hd);hdDiag.browserErrors=hdErrors;if(hdDiag.backing[0]<1500||hdDiag.backing[1]<850)throw new Error(`HD backing: ${JSON.stringify(hdDiag)}`);if(hdDiag.ux.cityLabelBoxes!==0||hdDiag.ux.mapAlertBox!==false)throw new Error(`HD UX: ${JSON.stringify(hdDiag)}`);if(hdErrors.length)throw new Error(`HD browser: ${JSON.stringify(hdErrors)}`);await hd.screenshot({path:`${outDir}/florida-hd.png`,fullPage:true});await hd.close();
+            all.features=features;all.hd=hdDiag;fs.writeFileSync(`${outDir}/diagnostic.json`,JSON.stringify(all,null,2));
+          } finally {await browser.close()}
+          JS
+          node .vnext-verify.mjs
+
+      - name: Exercise live full runtime locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          cat > .vnext-full.mjs <<'JS'
+          import puppeteer from 'puppeteer-core';import fs from 'node:fs';
+          const base=process.env.RDR_URL||'http://127.0.0.1:8765/',outDir=process.env.RDR_OUT||'/tmp/rdr-vnext/local';
+          const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
+          try{const page=await browser.newPage();await page.setViewport({width:1600,height:900,deviceScaleFactor:1});const be=[];page.on('pageerror',e=>be.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error'&&/ReferenceError|SyntaxError|invalid GRIB|unsupported PNG|unsupported GRIB|vnext/i.test(m.text()))be.push('console: '+m.text())});await page.goto(`${base}?view=florida&full=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});await page.waitForFunction(()=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get('florida');return p?.dataset?.ui==='vnext-2026.08.12.1'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=4&&s?.severe?.lightning&&s?.severe?.mesh&&(b?.states?.length||0)>=1},{timeout:240000,polling:500});await new Promise(r=>setTimeout(r,2200));const d=await page.evaluate(()=>({frames:state.frames.length,severe:{lightning:!!state.severe.lightning,mesh:!!state.severe.mesh},ux:{...state.ux},alerts:{...state.alertUi},backing:[canvas.width,canvas.height],errors:[...state.errors]}));d.browserErrors=be;if(d.frames<4||!d.severe.lightning||!d.severe.mesh||d.ux.cityLabelBoxes!==0||d.ux.mapAlertBox!==false||be.length)throw new Error(JSON.stringify(d));await page.screenshot({path:`${outDir}/full-runtime-hd.png`,fullPage:true});fs.writeFileSync(`${outDir}/full-runtime.json`,JSON.stringify(d,null,2));await page.close()}finally{await browser.close()}
+          JS
+          node .vnext-full.mjs
+
+      - name: Wait for deployed vNext
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 72); do
+            body=$(curl -fsSL "https://dmo18.github.io/rdr/?vnext=${GITHUB_SHA}-${i}" || true)
+            if printf '%s' "$body" | grep -q 'data-ui="vnext-2026.08.12.1"'; then exit 0; fi
+            sleep 5
+          done
+          echo 'Pages did not publish vNext' >&2
+          exit 1
+
+      - name: Verify deployed vNext
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          mkdir -p /tmp/rdr-vnext/deployed
+          RDR_URL='https://dmo18.github.io/rdr/' RDR_OUT='/tmp/rdr-vnext/deployed' node .vnext-verify.mjs
+          RDR_URL='https://dmo18.github.io/rdr/' RDR_OUT='/tmp/rdr-vnext/deployed' node .vnext-full.mjs
+
+      - name: Image quality checks
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          roots=[Path('/tmp/rdr-vnext/local')]
+          dep=Path('/tmp/rdr-vnext/deployed')
+          if dep.exists(): roots.append(dep)
+          for root in roots:
+              for name in ['home','metro','florida','regional','features']:
+                  p=root/f'{name}.png'; im=Image.open(p).convert('RGB'); assert im.size==(456,257),(p,im.size)
+                  colors=len(im.getcolors(maxcolors=10000000) or []); assert colors>700,(p,'colors',colors)
+              for name in ['florida-hd','full-runtime-hd']:
+                  p=root/f'{name}.png'; im=Image.open(p).convert('RGB'); assert im.size==(1600,900),(p,im.size)
+                  colors=len(im.resize((800,450)).getcolors(maxcolors=10000000) or []); assert colors>1000,(p,'colors',colors)
+          PY
+
+      - name: Upload vNext verification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdr-vnext-ux
+          path: /tmp/rdr-vnext
+          if-no-files-found: warn
+          retention-days: 7
