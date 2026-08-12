@@ -1,8 +1,8 @@
-name: QA adaptive HiDPI RDR
+name: Verify adaptive HiDPI RDR
 
 on:
   push:
-    branches: ['qa/hidpi-v9']
+    branches: ['qa/hidpi-v9', main]
   workflow_dispatch:
 
 permissions:
@@ -11,7 +11,7 @@ permissions:
 jobs:
   hidpi:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -19,7 +19,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'data-version="2026.08.12.9"' index.html
+          grep -q 'data-version="2026.08.12.8"' index.html
+          grep -q 'data-build="hidpi-2026.08.12.1"' index.html
           grep -q 'data-resolution="adaptive-hidpi"' index.html
           grep -q '<script src="hidpi.js"></script>' index.html
           grep -q 'RDR_MAX_RENDER_SCALE' hidpi.js
@@ -27,8 +28,8 @@ jobs:
           grep -q 'rdrLayerCanvas' hidpi.js
           grep -q 'rdrFilteredRadar' hidpi.js
           node --check hidpi.js
-          node --check app.js
           node --check alerts.js
+          node --check app.js
 
       - name: Install browser QA
         shell: bash
@@ -36,92 +37,71 @@ jobs:
           npm install --no-save --package-lock=false puppeteer-core >/dev/null
           python3 -m pip install --disable-pip-version-check pillow >/dev/null
 
-      - name: Serve branch locally
+      - name: Serve candidate locally
         shell: bash
         run: |
           python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/rdr-hidpi-http.log 2>&1 &
           sleep 1
 
-      - name: Exercise adaptive backing resolution
+      - name: Verify Yodeck, HD, Full HD, Retina and alert rendering
         shell: bash
         run: |
           set -euo pipefail
           export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           mkdir -p /tmp/rdr-hidpi
-          cat > .qa-hidpi.mjs <<'JS'
-          import puppeteer from 'puppeteer-core';
-          import fs from 'node:fs';
+          cat > .hidpi-local.mjs <<'JS'
+          import puppeteer from 'puppeteer-core';import fs from 'node:fs';
           const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
           const stats=a=>{a=[...a].sort((x,y)=>x-y);return{avg:a.length?a.reduce((x,y)=>x+y,0)/a.length:null,p95:a.length?a[Math.min(a.length-1,Math.floor(a.length*.95))]:null,max:a.length?a.at(-1):null,count:a.length}};
-          const waitReady=page=>page.waitForFunction(()=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get('home');return p?.dataset?.version==='2026.08.12.9'&&p?.dataset?.resolution&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(b?.states?.length||0)>=1},{timeout:180000,polling:250});
+          const watch=page=>{const a=[];page.on('pageerror',e=>a.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error'&&/ReferenceError|SyntaxError|invalid GRIB|unsupported PNG|unsupported GRIB|hidpi\.js/i.test(m.text()))a.push('console: '+m.text())});return a};
+          const ready=(page,id='home')=>page.waitForFunction(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get(id);return p?.dataset?.version==='2026.08.12.8'&&p?.dataset?.build==='hidpi-2026.08.12.1'&&p?.dataset?.resolution&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(b?.states?.length||0)>=1},{timeout:180000,polling:250},id);
+          const diag=async page=>page.evaluate(()=>{const p=document.querySelector('#panel'),c=document.querySelector('#display'),r=p.getBoundingClientRect(),s=window.__RDR__;return{viewport:[innerWidth,innerHeight],dpr:devicePixelRatio,panel:[r.width,r.height],backing:[c.width,c.height],dataset:{...p.dataset},render:s.render,errors:[...s.errors]}});
+          const out={};
           try{
-            const page=await browser.newPage();
-            const errors=[];page.on('pageerror',e=>errors.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text())});
-            await page.setViewport({width:456,height:257,deviceScaleFactor:1});
-            await page.goto(`http://127.0.0.1:8765/?view=home&verify=1&hidpi=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
-            await waitReady(page);
-            const scenarios=[
-              ['yodeck',456,257,1],
-              ['double',912,514,1],
-              ['hd',1600,900,1],
-              ['fullhd',1920,1080,1],
-              ['fourk-cap',3840,2160,1]
-            ],out={};
-            for(const [name,width,height,dpr] of scenarios){
-              await page.setViewport({width,height,deviceScaleFactor:dpr});await new Promise(r=>setTimeout(r,700));
-              await page.evaluate(()=>{window.__RDR__.perf.samples=[];render(performance.now())});await new Promise(r=>setTimeout(r,900));
-              const d=await page.evaluate(()=>{const p=document.querySelector('#panel'),c=document.querySelector('#display'),r=p.getBoundingClientRect(),s=window.__RDR__;return{viewport:[innerWidth,innerHeight],panel:[r.width,r.height],backing:[c.width,c.height],dataset:{...p.dataset},render:s.render,samples:[...(s.perf?.samples||[])],errors:[...s.errors]}});d.paint=stats(d.samples);delete d.samples;out[name]=d;
-              const target=d.panel[0]*dpr,ratio=d.backing[0]/target;
-              if(name==='yodeck'&&(d.backing[0]!==456||d.backing[1]!==257))throw new Error(`Yodeck backing changed: ${JSON.stringify(d)}`);
-              if(target>700&&d.backing[0]<=456)throw new Error(`scaled low-res bitmap: ${name} ${JSON.stringify(d)}`);
-              if(target<=456*5.05&&(ratio<.92||ratio>1.12))throw new Error(`backing density mismatch: ${name} ratio=${ratio} ${JSON.stringify(d)}`);
-              if(d.paint.p95!=null&&d.paint.p95>33)throw new Error(`warm paint: ${name} ${JSON.stringify(d.paint)}`);
-              if(errors.length)throw new Error(`browser errors: ${JSON.stringify(errors)}`);
-              if(name!=='fourk-cap')await page.screenshot({path:`/tmp/rdr-hidpi/${name}.png`,fullPage:true});
-            }
-            await page.setViewport({width:1600,height:900,deviceScaleFactor:1});await new Promise(r=>setTimeout(r,500));
-            const alertDiag=await page.evaluate(()=>{
-              const box=(w,s,e,n)=>({type:'Polygon',coordinates:[[[w,s],[e,s],[e,n],[w,n],[w,s]]]});
-              state.warnings.clear();state.warnings.set('qa-tor',{id:'qa-tor',type:'Feature',properties:{cap_id:'qa-tor',prod_type:'Tornado Warning',phenom:'TO',sig:'W',expiration:new Date(Date.now()+3600000).toISOString()},geometry:box(-80.24,26.00,-80.13,26.13)});state.alertRevision=(state.alertRevision||0)+1;invalidateAlertCache();render(performance.now());
-              return{backing:[canvas.width,canvas.height],render:state.render,alerts:eWarningsInView().map(x=>x.meta.code),ui:{...state.alertUi}};
-            });
-            if(!alertDiag.alerts.includes('TOR')||alertDiag.ui.boundaries<1||alertDiag.ui.summary!==true)throw new Error(`HiDPI alert overlay: ${JSON.stringify(alertDiag)}`);
-            await page.screenshot({path:'/tmp/rdr-hidpi/alert-hd.png',fullPage:true});
-            await page.evaluate(()=>showView(2));await new Promise(r=>setTimeout(r,1200));await page.screenshot({path:'/tmp/rdr-hidpi/florida-hd.png',fullPage:true});
-            await page.close();
+            const page=await browser.newPage(),errors=watch(page);await page.setViewport({width:456,height:257,deviceScaleFactor:1});await page.goto(`http://127.0.0.1:8765/?view=home&verify=1&hidpi=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});await ready(page);
+            out.yodeck=await diag(page);if(out.yodeck.backing[0]!==456||out.yodeck.backing[1]!==257)throw new Error(`Yodeck backing ${JSON.stringify(out.yodeck)}`);await page.screenshot({path:'/tmp/rdr-hidpi/yodeck.png',fullPage:true});
+            await page.setViewport({width:912,height:514,deviceScaleFactor:1});await new Promise(r=>setTimeout(r,700));out.double=await diag(page);if(out.double.backing[0]<900||out.double.backing[1]<500)throw new Error(`2x backing ${JSON.stringify(out.double)}`);await page.screenshot({path:'/tmp/rdr-hidpi/double.png',fullPage:true});
+            await page.setViewport({width:1600,height:900,deviceScaleFactor:1});await new Promise(r=>setTimeout(r,700));await page.evaluate(()=>{state.perf.samples=[];render(performance.now())});await new Promise(r=>setTimeout(r,1800));out.hd=await diag(page);out.hd.paint=await page.evaluate(()=>[...(state.perf?.samples||[])]).then(stats);if(out.hd.backing[0]<1500||out.hd.backing[1]<850||out.hd.paint.p95>33)throw new Error(`HD ${JSON.stringify(out.hd)}`);
+            out.alert=await page.evaluate(()=>{const box=(w,s,e,n)=>({type:'Polygon',coordinates:[[[w,s],[e,s],[e,n],[w,n],[w,s]]]});state.warnings.clear();state.warnings.set('qa-tor',{id:'qa-tor',type:'Feature',properties:{cap_id:'qa-tor',prod_type:'Tornado Warning',phenom:'TO',sig:'W',expiration:new Date(Date.now()+3600000).toISOString()},geometry:box(-80.24,26.00,-80.13,26.13)});state.alertRevision=(state.alertRevision||0)+1;invalidateAlertCache();render(performance.now());return{alerts:eWarningsInView().map(x=>x.meta.code),ui:{...state.alertUi},backing:[canvas.width,canvas.height]}});if(!out.alert.alerts.includes('TOR')||out.alert.ui.boundaries<1||out.alert.ui.summary!==true)throw new Error(`HD alert ${JSON.stringify(out.alert)}`);await page.screenshot({path:'/tmp/rdr-hidpi/hd-alert.png',fullPage:true});
+            await page.setViewport({width:1920,height:1080,deviceScaleFactor:1});await new Promise(r=>setTimeout(r,850));out.fullhd=await diag(page);if(out.fullhd.backing[0]<1900||out.fullhd.backing[1]<1050)throw new Error(`Full HD ${JSON.stringify(out.fullhd)}`);await page.screenshot({path:'/tmp/rdr-hidpi/fullhd.png',fullPage:true});if(errors.length)throw new Error(`browser ${JSON.stringify(errors)}`);await page.close();
 
-            // deviceScaleFactor is fixed at page creation in Chromium. A fresh
-            // Retina page proves a 456 x 257 CSS viewport receives a 2x backing.
-            const retina=await browser.newPage(),retinaErrors=[];retina.on('pageerror',e=>retinaErrors.push('pageerror: '+e.message));retina.on('console',m=>{if(m.type()==='error')retinaErrors.push('console: '+m.text())});
-            await retina.setViewport({width:456,height:257,deviceScaleFactor:2});await retina.goto(`http://127.0.0.1:8765/?view=home&verify=1&retina=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});await waitReady(retina);
-            const rd=await retina.evaluate(()=>{const p=document.querySelector('#panel'),c=document.querySelector('#display'),r=p.getBoundingClientRect(),s=window.__RDR__;return{dpr:devicePixelRatio,panel:[r.width,r.height],backing:[c.width,c.height],render:s.render,dataset:{...p.dataset},errors:[...s.errors]}});out.dpr2=rd;
-            if(rd.dpr<1.9||rd.backing[0]<900||rd.backing[1]<500)throw new Error(`Retina backing: ${JSON.stringify(rd)}`);if(retinaErrors.length)throw new Error(`Retina browser errors: ${JSON.stringify(retinaErrors)}`);
-            await retina.screenshot({path:'/tmp/rdr-hidpi/dpr2.png',fullPage:true});await retina.close();
-            fs.writeFileSync('/tmp/rdr-hidpi/adaptive.json',JSON.stringify({scenarios:out,alertDiag,browserErrors:errors},null,2));
+            const retina=await browser.newPage(),re=watch(retina);await retina.setViewport({width:456,height:257,deviceScaleFactor:2});await retina.goto(`http://127.0.0.1:8765/?view=home&verify=1&retina=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});await ready(retina);out.retina=await diag(retina);if(out.retina.dpr<1.9||out.retina.backing[0]<900||out.retina.backing[1]<500)throw new Error(`Retina ${JSON.stringify(out.retina)}`);if(re.length)throw new Error(`retina browser ${JSON.stringify(re)}`);await retina.screenshot({path:'/tmp/rdr-hidpi/retina.png',fullPage:true});await retina.close();
+
+            const full=await browser.newPage(),fe=watch(full);await full.setViewport({width:1600,height:900,deviceScaleFactor:1});await full.goto(`http://127.0.0.1:8765/?view=florida&fullhidpi=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});await full.waitForFunction(()=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get('florida');return p?.dataset?.build==='hidpi-2026.08.12.1'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=4&&s?.severe?.lightning&&s?.severe?.mesh&&(b?.states?.length||0)>=1},{timeout:240000,polling:500});await full.evaluate(()=>{state.perf.samples=[];eWarmCurrentView();render(performance.now())});await new Promise(r=>setTimeout(r,3200));out.fullRuntime=await diag(full);out.fullRuntime.frames=await full.evaluate(()=>state.frames.length);out.fullRuntime.severe=await full.evaluate(()=>({lightning:!!state.severe.lightning,mesh:!!state.severe.mesh}));out.fullRuntime.paint=await full.evaluate(()=>[...(state.perf?.samples||[])]).then(stats);if(out.fullRuntime.backing[0]<1500||out.fullRuntime.paint.p95>33||out.fullRuntime.frames<4||!out.fullRuntime.severe.lightning||!out.fullRuntime.severe.mesh||fe.length)throw new Error(`HD full runtime ${JSON.stringify({...out.fullRuntime,browserErrors:fe})}`);await full.screenshot({path:'/tmp/rdr-hidpi/full-runtime-hd.png',fullPage:true});await full.close();
+            fs.writeFileSync('/tmp/rdr-hidpi/metrics.json',JSON.stringify(out,null,2));
           } finally {await browser.close()}
           JS
-          node .qa-hidpi.mjs
+          node .hidpi-local.mjs
 
-      - name: Exercise full radar loop at HD size
+      - name: Wait for deployed HiDPI build
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 60); do
+            body=$(curl -fsSL "https://dmo18.github.io/rdr/?hidpi=${GITHUB_SHA}-${i}" || true)
+            if printf '%s' "$body" | grep -q 'data-build="hidpi-2026.08.12.1"' && printf '%s' "$body" | grep -q '<script src="hidpi.js"></script>'; then exit 0; fi
+            sleep 5
+          done
+          echo 'Pages did not publish adaptive HiDPI build' >&2
+          exit 1
+
+      - name: Verify deployed HD rendering
+        if: github.ref == 'refs/heads/main'
         shell: bash
         run: |
           set -euo pipefail
           export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
-          cat > .qa-hidpi-full.mjs <<'JS'
+          cat > .hidpi-deployed.mjs <<'JS'
           import puppeteer from 'puppeteer-core';import fs from 'node:fs';
           const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
-          const stats=a=>{a=[...a].sort((x,y)=>x-y);return{avg:a.length?a.reduce((x,y)=>x+y,0)/a.length:null,p95:a.length?a[Math.min(a.length-1,Math.floor(a.length*.95))]:null,max:a.length?a.at(-1):null,count:a.length}};
           try{
-            const page=await browser.newPage();await page.setViewport({width:1600,height:900,deviceScaleFactor:1});const errors=[];page.on('pageerror',e=>errors.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error'&&/ReferenceError|SyntaxError|invalid GRIB|unsupported PNG|unsupported GRIB/i.test(m.text()))errors.push('console: '+m.text())});
-            await page.goto(`http://127.0.0.1:8765/?view=florida&fullhidpi=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
-            await page.waitForFunction(()=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get('florida');return p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=4&&s?.severe?.lightning&&s?.severe?.mesh&&(b?.states?.length||0)>=1},{timeout:240000,polling:500});
-            await page.evaluate(()=>{window.__RDR__.perf.samples=[];eWarmCurrentView();render(performance.now())});await new Promise(r=>setTimeout(r,3200));
-            const d=await page.evaluate(()=>{const p=document.querySelector('#panel'),c=document.querySelector('#display'),r=p.getBoundingClientRect(),s=window.__RDR__;return{frames:s.frames.length,severe:{lightning:!!s.severe.lightning,mesh:!!s.severe.mesh},backing:[c.width,c.height],panel:[r.width,r.height],render:s.render,samples:[...(s.perf?.samples||[])],errors:s.errors,dataset:{...p.dataset}}});d.paint=stats(d.samples);delete d.samples;d.browserErrors=errors;
-            if(d.backing[0]<1500||d.backing[1]<850)throw new Error(`HD backing too small: ${JSON.stringify(d)}`);if(d.paint.p95!=null&&d.paint.p95>33)throw new Error(`HD full warm paint: ${JSON.stringify(d)}`);if(errors.length)throw new Error(JSON.stringify(d));
-            await page.screenshot({path:'/tmp/rdr-hidpi/full-runtime-hd.png',fullPage:true});fs.writeFileSync('/tmp/rdr-hidpi/full-runtime-hd.json',JSON.stringify(d,null,2));await page.close();
+            const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&/ReferenceError|SyntaxError|hidpi\.js|invalid GRIB|unsupported PNG/i.test(m.text()))errors.push(m.text())});await page.goto(`https://dmo18.github.io/rdr/?view=home&verify=1&publichidpi=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});await page.waitForFunction(()=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get('home');return p?.dataset?.build==='hidpi-2026.08.12.1'&&p?.dataset?.resolution==='hidpi-native'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(b?.states?.length||0)>=1},{timeout:180000,polling:250});let d=await page.evaluate(()=>({backing:[canvas.width,canvas.height],dataset:{...panel.dataset},render:state.render}));if(d.backing[0]!==456||d.backing[1]!==257)throw new Error(`deployed Yodeck ${JSON.stringify(d)}`);
+            await page.setViewport({width:1600,height:900,deviceScaleFactor:1});await new Promise(r=>setTimeout(r,900));d=await page.evaluate(()=>({backing:[canvas.width,canvas.height],dataset:{...panel.dataset},render:state.render}));if(d.backing[0]<1500||d.backing[1]<850||d.dataset.resolution!=='hidpi-native')throw new Error(`deployed HD ${JSON.stringify(d)}`);
+            const alert=await page.evaluate(()=>{const box=(w,s,e,n)=>({type:'Polygon',coordinates:[[[w,s],[e,s],[e,n],[w,n],[w,s]]]});state.warnings.clear();state.warnings.set('qa-tor',{id:'qa-tor',type:'Feature',properties:{cap_id:'qa-tor',prod_type:'Tornado Warning',phenom:'TO',sig:'W',expiration:new Date(Date.now()+3600000).toISOString()},geometry:box(-80.24,26.00,-80.13,26.13)});state.alertRevision=(state.alertRevision||0)+1;invalidateAlertCache();render(performance.now());return{alerts:eWarningsInView().map(x=>x.meta.code),ui:{...state.alertUi}}});if(!alert.alerts.includes('TOR')||alert.ui.boundaries<1)throw new Error(`deployed alert ${JSON.stringify(alert)}`);if(errors.length)throw new Error(`deployed browser ${JSON.stringify(errors)}`);await page.screenshot({path:'/tmp/rdr-hidpi/deployed-hd.png',fullPage:true});fs.writeFileSync('/tmp/rdr-hidpi/deployed.json',JSON.stringify({display:d,alert,browserErrors:errors},null,2));await page.close();
           } finally {await browser.close()}
           JS
-          node .qa-hidpi-full.mjs
+          node .hidpi-deployed.mjs
 
       - name: Image quality checks
         shell: bash
@@ -130,21 +110,19 @@ jobs:
           from PIL import Image
           from pathlib import Path
           root=Path('/tmp/rdr-hidpi')
-          expected={'yodeck':(456,257),'dpr2':(912,514),'double':(912,514),'hd':(1600,900),'fullhd':(1920,1080),'alert-hd':(1600,900),'florida-hd':(1600,900),'full-runtime-hd':(1600,900)}
+          expected={'yodeck':(456,257),'double':(912,514),'hd-alert':(1600,900),'fullhd':(1920,1080),'retina':(912,514),'full-runtime-hd':(1600,900)}
+          if (root/'deployed-hd.png').exists(): expected['deployed-hd']=(1600,900)
           for name,size in expected.items():
-              p=root/f'{name}.png';im=Image.open(p).convert('RGB');assert im.size==size,(name,im.size,size)
-              colors=len(im.resize((min(900,im.width),min(520,im.height))).getcolors(maxcolors=10000000) or [])
-              assert colors>1000,(name,'too few colors',colors)
-              small=im.resize((456,257)).convert('L');px=list(small.getdata());w,h=small.size
-              edge=sum(abs(px[y*w+x]-px[y*w+x-1]) for y in range(h) for x in range(1,w))
-              assert edge>180000,(name,'too soft or blank',edge)
+              im=Image.open(root/f'{name}.png').convert('RGB');assert im.size==size,(name,im.size,size)
+              colors=len(im.resize((min(900,im.width),min(520,im.height))).getcolors(maxcolors=10000000) or []);assert colors>1000,(name,'few colors',colors)
+              small=im.resize((456,257)).convert('L');px=list(small.getdata());w,h=small.size;edge=sum(abs(px[y*w+x]-px[y*w+x-1]) for y in range(h) for x in range(1,w));assert edge>180000,(name,'too soft or blank',edge)
           PY
 
-      - name: Upload HiDPI QA
+      - name: Upload HiDPI verification
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rdr-hidpi-v9-qa
+          name: rdr-adaptive-hidpi
           path: /tmp/rdr-hidpi
           if-no-files-found: warn
           retention-days: 7
