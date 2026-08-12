@@ -1,14 +1,15 @@
 :root{--w:456px;--h:257px}
 *{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#edf7fa;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#010508;color:#edf7fa;font-family:Arial,Helvetica,sans-serif}
 body{display:grid;place-items:center}
-#shell{position:relative;width:100vw;height:100vh;overflow:hidden;background:#000}
-#panel{position:absolute;left:50%;top:50%;width:var(--w);height:var(--h);transform-origin:center center;background:#020508;overflow:hidden;box-shadow:0 0 0 1px rgba(120,190,215,.16),0 15px 46px rgba(0,0,0,.68)}
-#display{display:block;width:456px;height:257px;background:#020508;image-rendering:auto}
-#boot{position:absolute;inset:0;z-index:5;display:grid;place-content:center;justify-items:center;gap:6px;text-align:center;background:radial-gradient(circle at 50% 44%,#102530 0,#040a0f 48%,#010203 100%);transition:opacity .28s ease,visibility .28s ease}
-#boot b{font:800 25px/1 Inter,system-ui,sans-serif;letter-spacing:.22em;color:#eafaff;text-shadow:0 0 22px rgba(75,220,255,.32)}
-#boot span{font:700 6px/1.2 Inter,system-ui,sans-serif;letter-spacing:.18em;color:#8095a0}
+#shell{position:relative;width:100vw;height:100vh;overflow:hidden;background:#010508}
+#panel{position:absolute;left:50%;top:50%;width:var(--w);height:var(--h);transform-origin:center center;background:#061118;overflow:hidden;box-shadow:0 0 0 1px rgba(142,193,213,.28),0 0 0 2px rgba(0,0,0,.72),0 12px 42px rgba(0,0,0,.62)}
+#display{display:block;width:456px;height:257px;background:#061118}
+#boot{position:absolute;inset:0;z-index:5;display:grid;place-content:center;justify-items:center;gap:6px;text-align:center;background:linear-gradient(180deg,#102936 0,#061118 52%,#02080c 100%);transition:opacity .22s ease,visibility .22s ease}
+#boot::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:#1b90b7}
+#boot b{font:800 18px/1 Arial,Helvetica,sans-serif;letter-spacing:.06em;color:#eef8fb;text-shadow:0 1px 0 #000}
+#boot span{font:800 6px/1.2 Arial,Helvetica,sans-serif;letter-spacing:.16em;color:#8fb1bf}
 #boot.off{opacity:0;visibility:hidden;pointer-events:none}
-#panel[data-freshness="delayed"] #display{filter:saturate(.95) brightness(.97)}
-#panel[data-freshness="stale"] #display{filter:saturate(.76) brightness(.88)}
+#panel[data-freshness="delayed"] #display{filter:saturate(.94)}
+#panel[data-freshness="stale"] #display{filter:saturate(.72) contrast(.94)}
 @media (prefers-reduced-motion:reduce){#boot{transition:none}}
