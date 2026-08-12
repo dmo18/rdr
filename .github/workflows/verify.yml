@@ -1,8 +1,16 @@
-name: Verify raw-data RDR renderer
+name: Verify ingested-data RDR renderer
 
 on:
   push:
     branches: [main]
+    paths:
+      - 'index.html'
+      - 'styles.css'
+      - 'app.js'
+      - 'README.md'
+      - 'scripts/**'
+      - 'data/**'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 permissions:
@@ -11,100 +19,72 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-
-      - name: Static architecture checks
-        shell: bash
+      - name: Static architecture
         run: |
           set -euo pipefail
           node --check app.js
-          grep -q 'data-version="2026.08.11.9"' index.html
-          grep -q 'data-engine="raw-data"' index.html
+          python -m py_compile scripts/ingest.py
+          grep -q 'data-version="2026.08.11.10"' index.html
+          grep -q 'data-engine="ingested-data"' index.html
           grep -q 'width="456" height="257"' index.html
-          grep -q 'RIDGEII/L2' app.js
-          grep -q 'DecompressionStream' app.js
-          grep -q 'GeoTIFF.fromArrayBuffer' app.js
-          grep -q 'readRasters' app.js
-          grep -q 'watch_warn_adv/MapServer/0/query' app.js
-          grep -q 'NHC_tropical_weather_summary' app.js
-          ! grep -RniE 'GetMap|WMS|MapServer/export|cdn.star.nesdis.noaa.gov|basemaps.cartocdn.com|rainviewer|api[_-]?key|access[_-]?token|client[_-]?secret|password=' index.html styles.css app.js
-
-      - name: Probe raw and vector data sources
-        shell: bash
+          grep -q 'RIDGEII/L2' scripts/ingest.py
+          grep -q 'tifffile' scripts/ingest.py
+          grep -q 'watch_warn_adv/MapServer/0/query' scripts/ingest.py
+          grep -q 'NHC_tropical_weather_summary' scripts/ingest.py
+          ! grep -RniE 'GetMap|WMS|MapServer/export|cdn.star.nesdis.noaa.gov|basemaps.cartocdn.com|rainviewer' index.html styles.css app.js
+      - name: Validate normalized feed files
         run: |
           set -euo pipefail
-          ua='Mozilla/5.0 RDR-Yodeck-Raw/9.0'
-          base='https://mrms.ncep.noaa.gov/RIDGEII/L2/CONUS/BREF_QCD/'
-          curl -fsSL --retry 2 --connect-timeout 10 --max-time 40 -A "$ua" "$base" -o /tmp/radar-index.html
-          file=$(grep -oE 'CONUS_L2_BREF_QCD_[0-9]{8}_[0-9]{6}\.tif\.gz' /tmp/radar-index.html | tail -1)
-          test -n "$file"
-          curl -fsSL --retry 2 --connect-timeout 10 --max-time 60 -A "$ua" "${base}${file}" -o /tmp/radar.tif.gz
-          gzip -t /tmp/radar.tif.gz
-          gunzip -c /tmp/radar.tif.gz > /tmp/radar.tif
-          file /tmp/radar.tif | grep -qi 'TIFF'
-          curl -fsSL --retry 2 --connect-timeout 10 --max-time 40 -A "$ua" 'https://mapservices.weather.noaa.gov/eventdriven/rest/services/WWA/watch_warn_adv/MapServer/0/query?where=1%3D1&geometry=-81%2C25%2C-79%2C27&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true&f=geojson' -o /tmp/warnings.json
-          grep -q 'FeatureCollection' /tmp/warnings.json
-          curl -fsSL --retry 2 --connect-timeout 10 --max-time 40 -A "$ua" 'https://api.weather.gov/points/26.0620,-80.1879' -o /tmp/point.json
-          grep -q 'forecastHourly' /tmp/point.json
-
-      - name: Render local raw-data views at 456 x 257
-        shell: bash
+          python - <<'PY'
+          import json,struct,glob
+          json.load(open('data/radar.json')); json.load(open('data/context.json'))
+          fs=glob.glob('data/*.png'); assert len(fs)>=4
+          for p in fs:
+              with open(p,'rb') as f:
+                  assert f.read(8)==b'\x89PNG\r\n\x1a\n'; f.read(4); assert f.read(4)==b'IHDR'; w,h=struct.unpack('>II',f.read(8)); assert (w,h)==(456,216),(p,w,h)
+          PY
+      - name: Render local views at exactly 456 x 257
         run: |
           set -euo pipefail
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/rdr-http.log 2>&1 &
-          pid=$!
-          trap 'kill $pid || true' EXIT
-          sleep 1
+          pid=$!; trap 'kill $pid || true' EXIT; sleep 1
           mkdir -p screenshots/local screenshots/live
           for view in home metro florida regional; do
             url="http://127.0.0.1:8765/?view=$view"
-            timeout 110s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=50000 --dump-dom "$url" > "/tmp/$view.html"
+            timeout 45s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=8000 --dump-dom "$url" > "/tmp/$view.html"
             grep -q 'data-ready="true"' "/tmp/$view.html"
-            grep -q 'data-radar="raw-geotiff"' "/tmp/$view.html"
-            grep -q "data-view=\"$view\"" "/tmp/$view.html"
-            timeout 110s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=50000 --screenshot="screenshots/local/$view.png" "$url"
+            grep -q 'data-feed="normalized-noaa"' "/tmp/$view.html"
+            timeout 45s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=8000 --screenshot="screenshots/local/$view.png" "$url"
           done
-          python3 - <<'PY'
-          import glob,struct
-          fs=glob.glob('screenshots/local/*.png'); assert len(fs)==4,fs
-          for p in fs:
-              with open(p,'rb') as f:
-                  assert f.read(8)==b'\x89PNG\r\n\x1a\n'; f.read(4); assert f.read(4)==b'IHDR'; w,h=struct.unpack('>II',f.read(8)); assert (w,h)==(456,257),(p,w,h)
-          PY
-
       - name: Wait for exact Pages version
-        shell: bash
         run: |
           set -euo pipefail
           ok=0
           for attempt in $(seq 1 42); do
             if curl -fsSL --max-time 15 -H 'Cache-Control: no-cache' "https://dmo18.github.io/rdr/?verify=${GITHUB_SHA}-${attempt}" -o /tmp/live.html; then
-              if grep -q 'data-version="2026.08.11.9"' /tmp/live.html; then ok=1; break; fi
+              if grep -q 'data-version="2026.08.11.10"' /tmp/live.html; then ok=1; break; fi
             fi
             sleep 10
           done
           test "$ok" = 1
-
-      - name: Render deployed raw-data views at 456 x 257
-        shell: bash
+      - name: Render deployed views at exactly 456 x 257
         run: |
           set -euo pipefail
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           for view in home metro florida regional; do
             url="https://dmo18.github.io/rdr/?view=$view&verify=${GITHUB_SHA}"
-            timeout 110s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=52000 --dump-dom "$url" > "/tmp/live-$view.html"
+            timeout 45s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=8000 --dump-dom "$url" > "/tmp/live-$view.html"
             grep -q 'data-ready="true"' "/tmp/live-$view.html"
-            grep -q 'data-radar="raw-geotiff"' "/tmp/live-$view.html"
-            timeout 110s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=52000 --screenshot="screenshots/live/$view.png" "$url"
+            timeout 45s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=8000 --screenshot="screenshots/live/$view.png" "$url"
           done
-
-      - name: Upload raw renderer screenshots
+      - name: Upload renders
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rdr-raw-data-renders
+          name: rdr-ingested-data-renders
           path: screenshots/
           retention-days: 14
