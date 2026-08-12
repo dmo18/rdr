@@ -15,7 +15,7 @@ const CFG={
 };
 
 const panel=document.getElementById('panel'),canvas=document.getElementById('display'),ctx=canvas.getContext('2d',{alpha:false,desynchronized:true}),boot=document.getElementById('boot'),query=new URLSearchParams(location.search),forcedView=query.get('view'),verifyMode=query.has('verify');
-const state={view:0,cursor:0,frames:[],radarLoading:false,lastListError:null,boundaries:new Map(),surface:new Map(),warnings:new Map(),tropics:[],weather:null,severe:{lightning:null,mesh:null},home:{dbz:null,status:'LOADING',nearest:null,eta:null},motion:null,transition:null,raf:null,lastPaint:0,rotateTimer:null,animTimer:null,pollTimer:null,vectorTimer:null,severeTimer:null,errors:[]};
+const state={view:0,cursor:0,frames:[],radarLoading:false,radarBackfilling:false,pendingRadarKeys:[],lastListError:null,boundaries:new Map(),surface:new Map(),warnings:new Map(),tropics:[],weather:null,severe:{lightning:null,mesh:null},home:{dbz:null,status:'LOADING',nearest:null,eta:null},motion:null,transition:null,raf:null,lastPaint:0,rotateTimer:null,animTimer:null,pollTimer:null,vectorTimer:null,severeTimer:null,errors:[],runtime:{deviceMemory:Number(navigator.deviceMemory)||null,hardwareConcurrency:Number(navigator.hardwareConcurrency)||null,decompressionStream:typeof DecompressionStream==='function',yodeckHint:query.has('yodeck')}};
 const MISSING=-32768;
 const radarStops=[[5,[0,104,232]],[10,[0,162,242]],[15,[0,194,142]],[20,[0,222,72]],[25,[74,232,53]],[30,[188,230,36]],[35,[246,221,34]],[40,[255,163,30]],[45,[255,92,28]],[50,[238,38,43]],[55,[244,34,104]],[60,[211,38,190]],[65,[151,55,226]],[70,[247,247,255]]];
 
@@ -26,17 +26,36 @@ function mapXY(lat,lon,def=view()){const[w,s,e,n]=def.bbox;return{x:(lon-w)/(e-w
 function within(lat,lon,def=view()){const b=def.bbox;return lon>=b[0]&&lon<=b[2]&&lat>=b[1]&&lat<=b[3]}
 function pixelLatLon(x,y,def=CFG.views[0]){const[w,s,e,n]=def.bbox;return{lon:w+x/(CFG.width-1)*(e-w),lat:n-y/(CFG.mapHeight-1)*(n-s)}}
 function clamp(n,a,b){return Math.max(a,Math.min(b,n))}
-function ageMs(){const f=state.frames.at(-1);return f?Date.now()-f.time.getTime():Infinity}
+function ageMs(){const f=state.frames.length?state.frames[state.frames.length-1]:null;return f?Date.now()-f.time.getTime():Infinity}
 function freshness(){const a=ageMs();return a<270000?'live':a<480000?'delayed':'stale'}
 function compactTime(d){return d&&Number.isFinite(d.getTime())?d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}).replace(' ','').replace('AM','a').replace('PM','p'):'--:--'}
 function utcTime(d){return d&&Number.isFinite(d.getTime())?d.toLocaleTimeString('en-US',{timeZone:'UTC',hour:'2-digit',minute:'2-digit',hour12:false})+'Z':'--:--Z'}
-function dayStamp(d=new Date()){return d.toISOString().slice(0,10).replaceAll('-','')}
+function dayStamp(d=new Date()){return d.toISOString().slice(0,10).replace(/-/g,'')}
 function keyTime(key){const m=key.match(/(\d{8})-(\d{6})/);if(!m)return null;return new Date(Date.UTC(+m[1].slice(0,4),+m[1].slice(4,6)-1,+m[1].slice(6,8),+m[2].slice(0,2),+m[2].slice(2,4),+m[2].slice(4,6)))}
 function requestSignal(ms){try{return typeof AbortSignal!=='undefined'&&typeof AbortSignal.timeout==='function'?AbortSignal.timeout(ms):undefined}catch{return undefined}}
 async function fetchText(url){const r=await fetch(url,{cache:'no-store',signal:requestSignal(20000)});if(!r.ok)throw new Error(`${r.status} ${url}`);return r.text()}
 async function fetchJson(url,headers={}){const r=await fetch(url,{cache:'no-store',headers,signal:requestSignal(15000)});if(!r.ok)throw new Error(`${r.status} ${url}`);return r.json()}
-async function inflate(buf,kind){return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream(kind))).arrayBuffer()}
-async function listProductDay(product,stamp){const prefix=`CONUS/${product}/${stamp}/`,url=`${CFG.mrmsBucket}/?list-type=2&prefix=${encodeURIComponent(prefix)}&max-keys=1000`,xml=await fetchText(url);return[...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map(m=>m[1]).filter(k=>k.endsWith('.grib2.gz'))}
+let compatInflaterPromise=null;
+function loadCompatInflater(){
+  if(window.fflate)return Promise.resolve(window.fflate);
+  if(compatInflaterPromise)return compatInflaterPromise;
+  compatInflaterPromise=new Promise((resolve,reject)=>{
+    const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js';s.async=true;s.crossOrigin='anonymous';
+    s.onload=()=>window.fflate?resolve(window.fflate):reject(new Error('fflate unavailable after load'));s.onerror=()=>reject(new Error('unable to load decompression fallback'));document.head.appendChild(s);
+  });
+  return compatInflaterPromise;
+}
+async function inflate(buf,kind){
+  if(typeof DecompressionStream==='function')return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream(kind))).arrayBuffer();
+  const lib=await loadCompatInflater(),input=new Uint8Array(buf),out=kind==='gzip'?lib.gunzipSync(input):kind==='deflate'?lib.unzlibSync(input):null;
+  if(!out)throw new Error(`unsupported compression ${kind}`);
+  return out.buffer.slice(out.byteOffset,out.byteOffset+out.byteLength);
+}
+async function listProductDay(product,stamp){
+  const prefix=`CONUS/${product}/${stamp}/`,url=`${CFG.mrmsBucket}/?list-type=2&prefix=${encodeURIComponent(prefix)}&max-keys=1000`,xml=await fetchText(url),keys=[],re=/<Key>([^<]+)<\/Key>/g;let m;
+  while((m=re.exec(xml))!==null)if(m[1].endsWith('.grib2.gz'))keys.push(m[1]);
+  return keys;
+}
 async function recentKeys(product,count=5){const now=new Date();let keys=await listProductDay(product,dayStamp(now));if(keys.length<count){const y=new Date(now.getTime()-86400000);keys=(await listProductDay(product,dayStamp(y))).concat(keys)}return[...new Set(keys)].sort().slice(-count)}
 function haversineMiles(a,b){const R=3958.7613,p1=a.lat*Math.PI/180,p2=b.lat*Math.PI/180,dp=(b.lat-a.lat)*Math.PI/180,dl=(b.lon-a.lon)*Math.PI/180,h=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
 function bearing(a,b){const p1=a.lat*Math.PI/180,p2=b.lat*Math.PI/180,dl=(b.lon-a.lon)*Math.PI/180;return(Math.atan2(Math.sin(dl)*Math.cos(p2),Math.cos(p1)*Math.sin(p2)-Math.sin(p1)*Math.cos(p2)*Math.cos(dl))*180/Math.PI+360)%360}
