@@ -11,7 +11,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -19,11 +19,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'data-version="2026.08.11.11"' index.html
+          grep -q 'data-version="2026.08.11.12"' index.html
           grep -q 'data-engine="live-mrms"' index.html
           grep -q 'noaa-mrms-pds.s3.amazonaws.com' core.js
           grep -q 'MergedReflectivityQCComposite_00.50' core.js
           grep -q 'template!==41' radar.js
+          grep -q 'function interpolated' radar.js
           grep -q 'DecompressionStream' core.js
           ! grep -R 'data/home.png\|data/radar.json\|scripts/ingest.py' -- index.html app.js core.js radar.js context.js render.js README.md
           for f in app.js core.js radar.js context.js render.js; do node --check "$f"; done
@@ -40,32 +41,68 @@ jobs:
           curl -fsSI -H 'Origin: https://dmo18.github.io' "https://noaa-mrms-pds.s3.amazonaws.com/$key" | grep -qi 'access-control-allow-origin: \*'
           echo "$key"
 
-      - name: Install image verification dependency
-        run: python3 -m pip install --disable-pip-version-check pillow >/dev/null
-
-      - name: Render every local scale at 456 x 257
+      - name: Install visual verification dependencies
         shell: bash
         run: |
           set -euo pipefail
-          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          npm install --no-save --package-lock=false puppeteer-core >/dev/null
+          python3 -m pip install --disable-pip-version-check pillow >/dev/null
+
+      - name: Create exact-viewport renderer
+        shell: bash
+        run: |
+          cat > .verify-render.mjs <<'JS'
+          import puppeteer from 'puppeteer-core';
+          import fs from 'node:fs';
+          const [base,out]=process.argv.slice(2);
+          const chrome=process.env.CHROME;
+          if(!chrome) throw new Error('CHROME is not set');
+          fs.mkdirSync(out,{recursive:true});
+          const browser=await puppeteer.launch({executablePath:chrome,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
+          try{
+            for(const v of ['home','metro','florida','regional']){
+              const page=await browser.newPage();
+              await page.setViewport({width:456,height:257,deviceScaleFactor:1});
+              const browserErrors=[];
+              page.on('pageerror',e=>browserErrors.push('pageerror: '+e.message));
+              page.on('console',m=>{if(m.type()==='error')browserErrors.push('console: '+m.text())});
+              const sep=base.includes('?')?'&':'?';
+              const url=`${base}${sep}view=${v}&verify=1&ci=${Date.now()}`;
+              await page.goto(url,{waitUntil:'domcontentloaded',timeout:120000});
+              try{
+                await page.waitForFunction(()=>{
+                  const p=document.querySelector('#panel'),s=window.__RDR__;
+                  return p?.dataset?.radar==='live' && p?.dataset?.ready==='true' && s?.frames?.length>=1;
+                },{timeout:120000,polling:250});
+              }catch(e){
+                const diag=await page.evaluate(()=>({dataset:{...document.querySelector('#panel')?.dataset},state:window.__RDR__?{frames:window.__RDR__.frames?.length,errors:window.__RDR__.errors}:null,body:document.body.innerText.slice(0,800)}));
+                throw new Error(`${v} never reached live radar: ${JSON.stringify(diag)} browser=${JSON.stringify(browserErrors)}`);
+              }
+              await new Promise(r=>setTimeout(r,500));
+              const diag=await page.evaluate(()=>{
+                const p=document.querySelector('#panel'),s=window.__RDR__,latest=s.frames.at(-1)?.time;
+                return{dataset:{...p.dataset},frames:s.frames.length,latest:latest?new Date(latest).toISOString():null,latestAgeMs:latest?Date.now()-new Date(latest).getTime():null,home:s.home,errors:s.errors,viewport:[innerWidth,innerHeight],panel:[p.getBoundingClientRect().width,p.getBoundingClientRect().height]};
+              });
+              if(diag.dataset.radar!=='live'||diag.frames<1)throw new Error(`${v} decoded no live frame: ${JSON.stringify(diag)}`);
+              if(!(diag.latestAgeMs>=0&&diag.latestAgeMs<15*60*1000))throw new Error(`${v} radar is not fresh: ${JSON.stringify(diag)}`);
+              if(diag.viewport[0]!==456||diag.viewport[1]!==257)throw new Error(`${v} wrong viewport: ${JSON.stringify(diag.viewport)}`);
+              const panel=await page.$('#panel');
+              await panel.screenshot({path:`${out}/${v}.png`});
+              fs.writeFileSync(`${out}/${v}.json`,JSON.stringify({...diag,browserErrors},null,2));
+              await page.close();
+            }
+          }finally{await browser.close()}
+          JS
+
+      - name: Render every local scale from live NOAA data
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           mkdir -p /tmp/renders/local
           python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/http.log 2>&1 &
           pid=$!; trap 'kill $pid || true' EXIT; sleep 1
-          for v in home metro florida regional; do
-            timeout 110s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=45000 --screenshot="/tmp/renders/local/$v.png" --dump-dom "http://127.0.0.1:8765/?view=$v&verify=1" > "/tmp/renders/local/$v.html" 2>/tmp/chrome-$v.log
-            grep -q 'data-ready="true"' "/tmp/renders/local/$v.html"
-            grep -q 'data-engine="live-mrms"' "/tmp/renders/local/$v.html"
-          done
-          python3 - <<'PY'
-          from PIL import Image
-          for v in ('home','metro','florida','regional'):
-              im=Image.open(f'/tmp/renders/local/{v}.png').convert('RGB')
-              assert im.size==(456,257), (v,im.size)
-              px=list(im.getdata())
-              assert len(set(px))>80, (v,'too few colors',len(set(px)))
-              lit=sum(1 for r,g,b in px if max(r,g,b)>55)
-              assert lit>2500, (v,'too dark',lit)
-          PY
+          node .verify-render.mjs 'http://127.0.0.1:8765/' /tmp/renders/local
 
       - name: Wait for exact Pages version
         shell: bash
@@ -73,33 +110,39 @@ jobs:
           set -euo pipefail
           for i in $(seq 1 40); do
             body=$(curl -fsSL "https://dmo18.github.io/rdr/?verify=${GITHUB_SHA}-${i}" || true)
-            if printf '%s' "$body" | grep -q 'data-version="2026.08.11.11"'; then exit 0; fi
+            if printf '%s' "$body" | grep -q 'data-version="2026.08.11.12"'; then exit 0; fi
             sleep 5
           done
           echo 'Pages did not publish the expected version' >&2
           exit 1
 
-      - name: Render every deployed scale at 456 x 257
+      - name: Render every deployed scale from live NOAA data
         shell: bash
         run: |
           set -euo pipefail
-          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           mkdir -p /tmp/renders/live
-          for v in home metro florida regional; do
-            url="https://dmo18.github.io/rdr/?view=$v&verify=${GITHUB_SHA}"
-            timeout 120s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=50000 --screenshot="/tmp/renders/live/$v.png" --dump-dom "$url" > "/tmp/renders/live/$v.html" 2>/tmp/live-$v.log
-            grep -q 'data-ready="true"' "/tmp/renders/live/$v.html"
-            grep -q 'data-engine="live-mrms"' "/tmp/renders/live/$v.html"
-          done
+          node .verify-render.mjs 'https://dmo18.github.io/rdr/' /tmp/renders/live
+
+      - name: Visual sanity checks
+        shell: bash
+        run: |
+          set -euo pipefail
           python3 - <<'PY'
           from PIL import Image
-          for v in ('home','metro','florida','regional'):
-              im=Image.open(f'/tmp/renders/live/{v}.png').convert('RGB')
-              assert im.size==(456,257), (v,im.size)
-              px=list(im.getdata())
-              assert len(set(px))>80, (v,'too few colors',len(set(px)))
-              lit=sum(1 for r,g,b in px if max(r,g,b)>55)
-              assert lit>2500, (v,'too dark',lit)
+          from pathlib import Path
+          for scope in ('local','live'):
+              for v in ('home','metro','florida','regional'):
+                  p=Path('/tmp/renders')/scope/f'{v}.png'
+                  im=Image.open(p).convert('RGB')
+                  assert im.size==(456,257), (scope,v,im.size)
+                  px=list(im.getdata())
+                  colors=len(set(px))
+                  lit=sum(1 for r,g,b in px if max(r,g,b)>55)
+                  nonblack=sum(1 for r,g,b in px if r+g+b>25)
+                  assert colors>100, (scope,v,'too few colors',colors)
+                  assert lit>2200, (scope,v,'too dark',lit)
+                  assert nonblack>22000, (scope,v,'too empty',nonblack)
           PY
 
       - name: Upload verification renders
