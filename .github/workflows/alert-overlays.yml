@@ -11,7 +11,7 @@ permissions:
 jobs:
   verify-alerts:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -93,6 +93,29 @@ jobs:
           } finally {await browser.close()}
           JS
           node .verify-alerts.mjs
+
+      - name: Wait for deployed alert module
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 60); do
+            body=$(curl -fsSL "https://dmo18.github.io/rdr/?alerts=${GITHUB_SHA}-${i}" || true)
+            if printf '%s' "$body" | grep -q '<script src="alerts.js"></script>'; then exit 0; fi
+            sleep 5
+          done
+          echo 'Pages did not publish alerts.js' >&2
+          exit 1
+
+      - name: Exercise deployed alert rendering
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          mkdir -p /tmp/rdr-alerts/deployed
+          sed 's#http://127.0.0.1:8765/#https://dmo18.github.io/rdr/#g; s#/tmp/rdr-alerts/#/tmp/rdr-alerts/deployed/#g' .verify-alerts.mjs > .verify-alerts-deployed.mjs
+          node .verify-alerts-deployed.mjs
 
       - name: Upload alert QA
         if: always()
