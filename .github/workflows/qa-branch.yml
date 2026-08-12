@@ -46,7 +46,7 @@ jobs:
           echo $! >/tmp/rdr-qa-http.pid
           sleep 1
 
-      - name: Render four exact live views and measure cold plus warm paint
+      - name: Render four exact live views and measure startup plus warm paint
         shell: bash
         run: |
           set -euo pipefail
@@ -66,16 +66,18 @@ jobs:
               const t0=Date.now();
               await page.goto(`http://127.0.0.1:8765/?view=${id}&verify=1&qa=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
               await page.waitForFunction(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get(id);return s?.frames?.length>=1&&(s.surface?.get(id)?.length||0)>=1&&(b?.states?.length||0)>=1&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'},{timeout:150000,polling:250},id);
+              const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);
               const coldPrepMs=await page.evaluate(()=>bWarmCurrentView());
               await page.evaluate(()=>{window.__RDR__.perf.samples=[]});
               await new Promise(r=>setTimeout(r,2600));
               const diag=await page.evaluate(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s.boundaries.get(id);return{id,frames:s.frames.length,surface:s.surface.get(id)?.length||0,boundaries:{states:b?.states?.length||0,counties:b?.counties?.length||0},errors:s.errors,samples:[...(s.perf?.samples||[])],dataset:{...p.dataset},viewport:[innerWidth,innerHeight],panel:[p.getBoundingClientRect().width,p.getBoundingClientRect().height]}},id);
-              diag.readyMs=Date.now()-t0;diag.coldPrepMs=coldPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=errors;all[id]=diag;
+              diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.coldPrepMs=coldPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=errors;all[id]=diag;
               const panel=await page.$('#panel');await panel.screenshot({path:`/tmp/rdr-qa/views/${id}.png`});
               fs.writeFileSync('/tmp/rdr-qa/views/metrics.json',JSON.stringify(all,null,2));
               if(diag.viewport[0]!==456||diag.viewport[1]!==257||diag.panel[0]!==456||diag.panel[1]!==257)throw new Error(`geometry ${id}: ${JSON.stringify(diag)}`);
               if(errors.length)throw new Error(`browser ${id}: ${JSON.stringify(diag)}`);
               if(!(diag.boundaries.states>=1))throw new Error(`missing boundaries ${id}: ${JSON.stringify(diag)}`);
+              if(diag.startupPaint.max!=null&&diag.startupPaint.max>200)throw new Error(`startup paint ${id}: ${JSON.stringify(diag.startupPaint)}`);
               if(diag.coldPrepMs>250)throw new Error(`cold prep ${id}: ${JSON.stringify(diag)}`);
               if(diag.paint.p95!=null&&diag.paint.p95>16)throw new Error(`warm paint p95 ${id}: ${JSON.stringify(diag.paint)}`);
               await page.close();
@@ -98,12 +100,14 @@ jobs:
             const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
             const t0=Date.now();await page.goto(`http://127.0.0.1:8765/?view=florida&fullqa=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
             await page.waitForFunction(()=>{const s=window.__RDR__,b=s?.boundaries?.get('florida');return s?.frames?.length>=4&&s?.severe?.lightning&&s?.severe?.mesh&&(b?.states?.length||0)>=1&&document.querySelector('#panel')?.dataset?.radar==='live'},{timeout:240000,polling:500});
+            const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);
             const coldPrepMs=await page.evaluate(()=>bWarmCurrentView());
             await page.evaluate(()=>{window.__RDR__.perf.samples=[]});
             await new Promise(r=>setTimeout(r,2800));
-            const diag=await page.evaluate(()=>{const s=window.__RDR__;return{frames:s.frames.length,severe:{lightning:!!s.severe.lightning,mesh:!!s.severe.mesh},samples:[...(s.perf?.samples||[])],errors:s.errors}});diag.readyMs=Date.now()-t0;diag.coldPrepMs=coldPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=errors;
+            const diag=await page.evaluate(()=>{const s=window.__RDR__;return{frames:s.frames.length,severe:{lightning:!!s.severe.lightning,mesh:!!s.severe.mesh},samples:[...(s.perf?.samples||[])],errors:s.errors}});diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.coldPrepMs=coldPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=errors;
             await (await page.$('#panel')).screenshot({path:'/tmp/rdr-qa/views/full-runtime.png'});fs.writeFileSync('/tmp/rdr-qa/views/full-runtime.json',JSON.stringify(diag,null,2));
             if(errors.length)throw new Error(JSON.stringify(diag));
+            if(diag.startupPaint.max!=null&&diag.startupPaint.max>250)throw new Error(`full startup paint: ${JSON.stringify(diag)}`);
             if(diag.coldPrepMs>350)throw new Error(`full cold prep: ${JSON.stringify(diag)}`);
             if(diag.paint.p95!=null&&diag.paint.p95>16)throw new Error(`full warm paint p95: ${JSON.stringify(diag)}`);
           } finally {await browser.close()}
