@@ -124,6 +124,30 @@ jobs:
           mkdir -p /tmp/renders/live
           node .verify-render.mjs 'https://dmo18.github.io/rdr/' /tmp/renders/live
 
+      - name: Exercise full deployed runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          cat > .verify-full.mjs <<'JS'
+          import puppeteer from 'puppeteer-core';
+          import fs from 'node:fs';
+          const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
+          try{
+            const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});
+            const browserErrors=[];page.on('pageerror',e=>browserErrors.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push('console: '+m.text())});
+            await page.goto(`https://dmo18.github.io/rdr/?view=florida&full=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
+            await page.waitForFunction(()=>window.__RDR__?.frames?.length>=3 && document.querySelector('#panel')?.dataset?.radar==='live',{timeout:240000,polling:500});
+            const diag=await page.evaluate(()=>({frames:window.__RDR__.frames.length,severe:{lightning:!!window.__RDR__.severe.lightning,mesh:!!window.__RDR__.severe.mesh},errors:window.__RDR__.errors,radar:document.querySelector('#panel').dataset.radar,freshness:document.querySelector('#panel').dataset.freshness}));
+            if(diag.radar!=='live'||diag.frames<3)throw new Error('full radar loop failed: '+JSON.stringify(diag));
+            if(!diag.severe.lightning&&!diag.severe.mesh)throw new Error('severe data stage loaded no MRMS field: '+JSON.stringify(diag));
+            if(diag.errors.some(e=>/ReferenceError|TypeError|invalid GRIB|unsupported PNG|unsupported GRIB/i.test(e)))throw new Error('runtime decoder error: '+JSON.stringify(diag));
+            const panel=await page.$('#panel');await panel.screenshot({path:'/tmp/renders/live/full-runtime.png'});
+            fs.writeFileSync('/tmp/renders/live/full-runtime.json',JSON.stringify({...diag,browserErrors},null,2));
+          }finally{await browser.close()}
+          JS
+          node .verify-full.mjs
+
       - name: Visual sanity checks
         shell: bash
         run: |
