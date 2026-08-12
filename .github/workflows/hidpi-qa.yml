@@ -53,15 +53,15 @@ jobs:
           import fs from 'node:fs';
           const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
           const stats=a=>{a=[...a].sort((x,y)=>x-y);return{avg:a.length?a.reduce((x,y)=>x+y,0)/a.length:null,p95:a.length?a[Math.min(a.length-1,Math.floor(a.length*.95))]:null,max:a.length?a.at(-1):null,count:a.length}};
+          const waitReady=page=>page.waitForFunction(()=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get('home');return p?.dataset?.version==='2026.08.12.9'&&p?.dataset?.resolution&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(b?.states?.length||0)>=1},{timeout:180000,polling:250});
           try{
             const page=await browser.newPage();
             const errors=[];page.on('pageerror',e=>errors.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text())});
             await page.setViewport({width:456,height:257,deviceScaleFactor:1});
             await page.goto(`http://127.0.0.1:8765/?view=home&verify=1&hidpi=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
-            await page.waitForFunction(()=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get('home');return p?.dataset?.version==='2026.08.12.9'&&p?.dataset?.resolution&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(b?.states?.length||0)>=1},{timeout:180000,polling:250});
+            await waitReady(page);
             const scenarios=[
               ['yodeck',456,257,1],
-              ['dpr2',456,257,2],
               ['double',912,514,1],
               ['hd',1600,900,1],
               ['fullhd',1920,1080,1],
@@ -88,8 +88,16 @@ jobs:
             if(!alertDiag.alerts.includes('TOR')||alertDiag.ui.boundaries<1||alertDiag.ui.summary!==true)throw new Error(`HiDPI alert overlay: ${JSON.stringify(alertDiag)}`);
             await page.screenshot({path:'/tmp/rdr-hidpi/alert-hd.png',fullPage:true});
             await page.evaluate(()=>showView(2));await new Promise(r=>setTimeout(r,1200));await page.screenshot({path:'/tmp/rdr-hidpi/florida-hd.png',fullPage:true});
-            fs.writeFileSync('/tmp/rdr-hidpi/adaptive.json',JSON.stringify({scenarios:out,alertDiag,browserErrors:errors},null,2));
             await page.close();
+
+            // deviceScaleFactor is fixed at page creation in Chromium. A fresh
+            // Retina page proves a 456 x 257 CSS viewport receives a 2x backing.
+            const retina=await browser.newPage(),retinaErrors=[];retina.on('pageerror',e=>retinaErrors.push('pageerror: '+e.message));retina.on('console',m=>{if(m.type()==='error')retinaErrors.push('console: '+m.text())});
+            await retina.setViewport({width:456,height:257,deviceScaleFactor:2});await retina.goto(`http://127.0.0.1:8765/?view=home&verify=1&retina=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});await waitReady(retina);
+            const rd=await retina.evaluate(()=>{const p=document.querySelector('#panel'),c=document.querySelector('#display'),r=p.getBoundingClientRect(),s=window.__RDR__;return{dpr:devicePixelRatio,panel:[r.width,r.height],backing:[c.width,c.height],render:s.render,dataset:{...p.dataset},errors:[...s.errors]}});out.dpr2=rd;
+            if(rd.dpr<1.9||rd.backing[0]<900||rd.backing[1]<500)throw new Error(`Retina backing: ${JSON.stringify(rd)}`);if(retinaErrors.length)throw new Error(`Retina browser errors: ${JSON.stringify(retinaErrors)}`);
+            await retina.screenshot({path:'/tmp/rdr-hidpi/dpr2.png',fullPage:true});await retina.close();
+            fs.writeFileSync('/tmp/rdr-hidpi/adaptive.json',JSON.stringify({scenarios:out,alertDiag,browserErrors:errors},null,2));
           } finally {await browser.close()}
           JS
           node .qa-hidpi.mjs
@@ -119,15 +127,14 @@ jobs:
         shell: bash
         run: |
           python3 - <<'PY'
-          from PIL import Image, ImageStat
+          from PIL import Image
           from pathlib import Path
           root=Path('/tmp/rdr-hidpi')
-          expected={'yodeck':(456,257),'double':(912,514),'hd':(1600,900),'fullhd':(1920,1080),'alert-hd':(1600,900),'florida-hd':(1600,900),'full-runtime-hd':(1600,900)}
+          expected={'yodeck':(456,257),'dpr2':(912,514),'double':(912,514),'hd':(1600,900),'fullhd':(1920,1080),'alert-hd':(1600,900),'florida-hd':(1600,900),'full-runtime-hd':(1600,900)}
           for name,size in expected.items():
               p=root/f'{name}.png';im=Image.open(p).convert('RGB');assert im.size==size,(name,im.size,size)
               colors=len(im.resize((min(900,im.width),min(520,im.height))).getcolors(maxcolors=10000000) or [])
               assert colors>1000,(name,'too few colors',colors)
-              # Edge energy catches accidental nearest-neighbor/blank rendering regressions.
               small=im.resize((456,257)).convert('L');px=list(small.getdata());w,h=small.size
               edge=sum(abs(px[y*w+x]-px[y*w+x-1]) for y in range(h) for x in range(1,w))
               assert edge>180000,(name,'too soft or blank',edge)
