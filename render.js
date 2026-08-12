@@ -76,7 +76,7 @@ function resetWindParticles(){
   for(let i=0;i<n;i++)state.windParticles.push({x:seeded(i+state.view*101)*CFG.width,y:CFG.top+seeded(i+31+state.view*71)*CFG.mapHeight,life:seeded(i+61)*1.8});
 }
 function drawWindFlow(now=performance.now()){
-  if(!surfaceFeatures().length)return;if(state.windView!==view().id||!state.windParticles.length)resetWindParticles();const dt=clamp((now-state.windLast)/1000,0,.18);state.windLast=now,scale=view().id==='home'?.72:view().id==='metro'?.52:view().id==='florida'?.31:.18;
+  if(!surfaceFeatures().length)return;if(state.windView!==view().id||!state.windParticles.length)resetWindParticles();const dt=clamp((now-state.windLast)/1000,0,.18);state.windLast=now;const scale=view().id==='home'?.72:view().id==='metro'?.52:view().id==='florida'?.31:.18;
   ctx.save();ctx.lineCap='round';ctx.globalCompositeOperation='screen';
   for(let i=0;i<state.windParticles.length;i++){
     const p=state.windParticles[i],v=windVectorAt(p.x,p.y);if(!v||v.speed<1){p.x=seeded(i+now*.00001)*CFG.width;p.y=CFG.top+seeded(i+41+now*.00001)*CFG.mapHeight;continue}
