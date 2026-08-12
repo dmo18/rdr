@@ -1,14 +1,14 @@
 'use strict';
 
 const CFG={
-  width:456,height:257,top:28,bottom:19,mapHeight:210,
+  width:456,height:257,top:30,bottom:22,mapHeight:205,
   home:{lat:26.06197904865014,lon:-80.18787062578414},
-  pollMs:120000,vectorMs:300000,severeMs:180000,radarFrameMs:980,radarBlendMs:360,animFps:15,
+  pollMs:120000,vectorMs:300000,severeMs:180000,radarFrameMs:1050,radarBlendMs:260,animFps:12,
   views:[
-    {id:'home',name:'HOME',duration:12000,bbox:[-80.46,25.84,-79.96,26.30],labels:[['DAVIE',26.0765,-80.2521],['HOLLYWOOD',26.0112,-80.1495],['DANIA',26.0523,-80.1439],['FORT LAUDERDALE',26.1224,-80.1373],['HALLANDALE',25.9812,-80.1484],['MIRAMAR',25.9861,-80.3036]]},
-    {id:'metro',name:'BROWARD / MIAMI',duration:11000,bbox:[-81.10,25.00,-79.45,27.02],labels:[['WEST PALM',26.7153,-80.0534],['BOCA RATON',26.3683,-80.1289],['FORT LAUDERDALE',26.1224,-80.1373],['HOLLYWOOD',26.0112,-80.1495],['MIAMI',25.7617,-80.1918],['HOMESTEAD',25.4687,-80.4776],['KEY LARGO',25.0865,-80.4473]]},
-    {id:'florida',name:'FLORIDA',duration:10000,bbox:[-87.80,24.00,-79.20,31.25],labels:[['JACKSONVILLE',30.3322,-81.6557],['ORLANDO',28.5383,-81.3792],['TAMPA',27.9506,-82.4572],['WEST PALM',26.7153,-80.0534],['FORT MYERS',26.6406,-81.8723],['NAPLES',26.1423,-81.7948],['MIAMI',25.7617,-80.1918],['KEY WEST',24.5551,-81.7800]]},
-    {id:'regional',name:'GULF / CUBA',duration:12000,bbox:[-98.00,18.00,-72.00,32.80],labels:[['GULF OF MEXICO',25.9,-90.0],['FLORIDA',27.4,-81.7],['MIAMI',25.7617,-80.1918],['KEY WEST',24.5551,-81.7800],['HAVANA',23.1136,-82.3666],['CUBA',22.25,-79.7],['BAHAMAS',24.4,-76.7],['YUCATAN',21.0,-87.1]]}
+    {id:'home',name:'NEIGHBORHOOD',duration:11000,bbox:[-80.46,25.84,-79.96,26.30],scaleMi:10,labels:[['DAVIE',26.0765,-80.2521],['HOLLYWOOD',26.0112,-80.1495],['DANIA BEACH',26.0523,-80.1439],['FORT LAUDERDALE',26.1224,-80.1373],['HALLANDALE',25.9812,-80.1484],['MIRAMAR',25.9861,-80.3036]]},
+    {id:'metro',name:'SOUTH FLORIDA',duration:11000,bbox:[-81.10,25.00,-79.45,27.02],scaleMi:25,labels:[['WEST PALM',26.7153,-80.0534],['BOCA RATON',26.3683,-80.1289],['FORT LAUDERDALE',26.1224,-80.1373],['HOLLYWOOD',26.0112,-80.1495],['MIAMI',25.7617,-80.1918],['HOMESTEAD',25.4687,-80.4776],['KEY LARGO',25.0865,-80.4473]]},
+    {id:'florida',name:'FLORIDA',duration:11000,bbox:[-87.80,24.00,-79.20,31.25],scaleMi:100,labels:[['JACKSONVILLE',30.3322,-81.6557],['ORLANDO',28.5383,-81.3792],['TAMPA',27.9506,-82.4572],['WEST PALM',26.7153,-80.0534],['FORT MYERS',26.6406,-81.8723],['NAPLES',26.1423,-81.7948],['MIAMI',25.7617,-80.1918],['KEY WEST',24.5551,-81.7800]]},
+    {id:'regional',name:'GULF + CARIBBEAN',duration:12000,bbox:[-98.00,18.00,-72.00,32.80],scaleMi:250,labels:[['GULF OF MEXICO',25.9,-90.0],['FLORIDA',27.4,-81.7],['MIAMI',25.7617,-80.1918],['KEY WEST',24.5551,-81.7800],['HAVANA',23.1136,-82.3666],['CUBA',22.25,-79.7],['BAHAMAS',24.4,-76.7],['YUCATAN',21.0,-87.1]]}
   ],
   mrmsBucket:'https://noaa-mrms-pds.s3.amazonaws.com',
   radarProduct:'MergedReflectivityQCComposite_00.50',
@@ -32,15 +32,15 @@ const state={
   view:0,cursor:0,frames:[],radarLoading:false,lastListError:null,
   boundaries:new Map(),surface:new Map(),warnings:new Map(),tropics:[],weather:null,
   severe:{lightning:null,mesh:null},home:{dbz:null,status:'LOADING',nearest:null,eta:null},motion:null,
-  transition:null,windParticles:[],windView:null,windLast:0,raf:null,lastPaint:0,
+  transition:null,raf:null,lastPaint:0,
   rotateTimer:null,animTimer:null,pollTimer:null,vectorTimer:null,severeTimer:null,errors:[]
 };
 
 const MISSING=-32768;
 const radarStops=[
-  [5,[0,103,214]],[10,[0,167,255]],[15,[0,213,155]],[20,[0,231,76]],[25,[60,240,60]],
-  [30,[181,239,45]],[35,[250,226,43]],[40,[255,169,35]],[45,[255,96,34]],[50,[246,44,48]],
-  [55,[255,34,122]],[60,[221,39,216]],[65,[166,55,241]],[70,[248,248,255]]
+  [5,[0,104,232]],[10,[0,162,242]],[15,[0,194,142]],[20,[0,222,72]],[25,[74,232,53]],
+  [30,[188,230,36]],[35,[246,221,34]],[40,[255,163,30]],[45,[255,92,28]],[50,[238,38,43]],
+  [55,[244,34,104]],[60,[211,38,190]],[65,[151,55,226]],[70,[247,247,255]]
 ];
 
 function fitPanel(){
@@ -94,4 +94,3 @@ function bearing(a,b){
 }
 function dir8(deg){return['N','NE','E','SE','S','SW','W','NW'][Math.round(((deg%360)+360)%360/45)%8]}
 function angleDiff(a,b){let d=Math.abs(a-b)%360;return d>180?360-d:d}
-function seeded(n){const x=Math.sin(n*12.9898+78.233)*43758.5453;return x-Math.floor(x)}
