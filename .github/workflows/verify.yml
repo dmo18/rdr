@@ -19,17 +19,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'data-version="2026.08.12.3"' index.html
+          grep -q 'data-version="2026.08.12.4"' index.html
           grep -q 'data-engine="live-mrms"' index.html
           grep -q 'noaa-mrms-pds.s3.amazonaws.com' core.js
           grep -q 'MergedReflectivityQCComposite_00.50' core.js
           grep -q 'surface_obs/MapServer' core.js
           grep -q 'function loadSurfaceObs' context.js
-          grep -q 'function surfaceLayers' context.js
-          grep -q 'function drawCloudField' render.js
-          grep -q 'function drawWindFlow' render.js
-          grep -q 'const scale=' render.js
-          grep -q 'function drawSevereOverlay' render.js
+          grep -q "def.id!=='regional'" context.js
+          grep -q 'function drawStationPlots' render.js
+          grep -q 'function drawWindBarb' render.js
+          grep -q 'function radarCells' render.js
+          grep -q 'function drawImpactPanel' render.js
+          grep -q 'function drawHeader' render.js
+          grep -q 'function drawBottomRail' render.js
+          ! grep -q 'function drawWindFlow' render.js
           grep -q 'template!==41' radar.js
           grep -q 'meta.bits===24' radar.js
           grep -q 'DecompressionStream' core.js
@@ -103,7 +106,7 @@ jobs:
           set -euo pipefail
           for i in $(seq 1 40); do
             body=$(curl -fsSL "https://dmo18.github.io/rdr/?verify=${GITHUB_SHA}-${i}" || true)
-            if printf '%s' "$body" | grep -q 'data-version="2026.08.12.3"'; then exit 0; fi
+            if printf '%s' "$body" | grep -q 'data-version="2026.08.12.4"'; then exit 0; fi
             sleep 5
           done
           echo 'Pages did not publish the expected version' >&2
@@ -158,14 +161,14 @@ jobs:
                   colors=len(set(px))
                   lit=sum(1 for r,g,b in px if max(r,g,b)>55)
                   nonblack=sum(1 for r,g,b in px if r+g+b>25)
-                  assert colors>220, (scope,v,'too few colors',colors)
-                  assert lit>2400, (scope,v,'too dark',lit)
-                  assert nonblack>26000, (scope,v,'too empty',nonblack)
+                  assert colors>260, (scope,v,'too few colors',colors)
+                  assert lit>3000, (scope,v,'too dark',lit)
+                  assert nonblack>30000, (scope,v,'too empty',nonblack)
           PY
 
       - name: Upload verification renders
         uses: actions/upload-artifact@v4
         with:
-          name: rdr-live-mrms-renders
+          name: rdr-enterprise-broadcast-renders
           path: /tmp/renders
           retention-days: 7
