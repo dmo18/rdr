@@ -1,0 +1,128 @@
+name: Verify explicit alert copy
+
+on:
+  push:
+    branches: ['qa/alert-copy-v11', main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  alert-copy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Static copy checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'data-copy="alert-copy-2026.08.12.1"' index.html
+          grep -q 'alert-copy.js?v=20260812.1' index.html
+          grep -q "alertCounterPolicy='typed-counts-only'" alert-copy.js
+          grep -q 'ambiguousPlusCounter=false' alert-copy.js
+          if grep -Eq '\+\$\{(more|sum\.otherCount|otherCount)\}' alert-copy.js; then
+            echo 'Ambiguous +N alert counter found' >&2
+            exit 1
+          fi
+          node --check alert-copy.js
+
+      - name: Install browser QA
+        shell: bash
+        run: |
+          npm install --no-save --package-lock=false puppeteer-core >/dev/null
+          python3 -m pip install --disable-pip-version-check pillow >/dev/null
+
+      - name: Serve candidate locally
+        shell: bash
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/rdr-alert-copy-http.log 2>&1 &
+          sleep 1
+
+      - name: Exercise human-readable alert counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          mkdir -p /tmp/rdr-alert-copy/local
+          cat > .alert-copy-verify.mjs <<'JS'
+          import puppeteer from 'puppeteer-core';
+          import fs from 'node:fs';
+          const base=process.env.RDR_URL||'http://127.0.0.1:8765/';
+          const outDir=process.env.RDR_OUT||'/tmp/rdr-alert-copy/local';
+          const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
+          const waitReady=page=>page.waitForFunction(()=>{const p=document.querySelector('#panel'),s=window.__RDR__,b=s?.boundaries?.get('home');return p?.dataset?.copy==='alert-copy-2026.08.12.1'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(b?.states?.length||0)>=1},{timeout:180000,polling:250});
+          const inject=async(page,svrCount,advCount)=>page.evaluate(({svrCount,advCount})=>{
+            const box=(w,s,e,n)=>({type:'Polygon',coordinates:[[[w,s],[e,s],[e,n],[w,n],[w,s]]]}),future=new Date(Date.now()+45*60*1000).toISOString();
+            state.warnings.clear();
+            for(let i=0;i<svrCount;i++)state.warnings.set(`svr-${i}`,{type:'Feature',properties:{cap_id:`svr-${i}`,prod_type:'Severe Thunderstorm Warning',phenom:'SV',sig:'W',expiration:future},geometry:box(-80.43+i*.015,26.14,-80.34+i*.015,26.22)});
+            for(let i=0;i<advCount;i++)state.warnings.set(`adv-${i}`,{type:'Feature',properties:{cap_id:`adv-${i}`,prod_type:'Heat Advisory',phenom:'HT',sig:'Y',expiration:future},geometry:box(-80.43+i*.01,25.87,-80.35+i*.01,25.95)});
+            state.alertRevision=(state.alertRevision||0)+1;invalidateAlertCache();render(performance.now());
+            const sum=vAlertSummary();return{sum:{same:sum?.same,count:sum?.count,otherCount:sum?.otherCount,typedLabel:sum?.typedLabel},ux:{...state.ux},alertUi:{...state.alertUi},hazard:vHazardText()};
+          },{svrCount,advCount});
+          try{
+            const page=await browser.newPage(),browserErrors=[];page.on('pageerror',e=>browserErrors.push(e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push(m.text())});await page.setViewport({width:456,height:257,deviceScaleFactor:1});await page.goto(`${base}?view=home&verify=1&copy=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});await waitReady(page);
+            const mixed=await inject(page,1,7);await page.screenshot({path:`${outDir}/one-svr-seven-other.png`,fullPage:true});
+            const mixedText=[mixed.ux.alertHeaderText,mixed.ux.alertHazardMain,mixed.ux.alertHazardSub,mixed.alertUi.copyLabel].filter(Boolean).join(' | ');
+            if(/\+\s*\d/.test(mixedText))throw new Error(`ambiguous +N returned: ${JSON.stringify(mixed)}`);
+            if(mixed.sum.typedLabel!=='SVR WARNING'||mixed.sum.otherCount!==7)throw new Error(`mixed semantics: ${JSON.stringify(mixed)}`);
+            if(!mixed.ux.alertHeaderText.includes('SVR WARNING'))throw new Error(`header not explicit: ${JSON.stringify(mixed)}`);
+            if(mixed.ux.alertCounterPolicy!=='typed-counts-only'||mixed.ux.ambiguousPlusCounter!==false)throw new Error(`copy policy: ${JSON.stringify(mixed)}`);
+
+            const same=await inject(page,3,0);await page.screenshot({path:`${outDir}/three-svr.png`,fullPage:true});
+            const sameText=[same.ux.alertHeaderText,same.ux.alertHazardMain,same.ux.alertHazardSub,same.alertUi.copyLabel].filter(Boolean).join(' | ');
+            if(/\+\s*\d/.test(sameText))throw new Error(`ambiguous +N returned: ${JSON.stringify(same)}`);
+            if(same.sum.typedLabel!=='3 SVR WARNINGS'||!same.ux.alertHeaderText.includes('3 SVR WARNINGS')||same.hazard.main!=='3 SVR WARNINGS')throw new Error(`typed count missing: ${JSON.stringify(same)}`);
+            if(browserErrors.length)throw new Error(`browser errors: ${JSON.stringify(browserErrors)}`);
+            fs.writeFileSync(`${outDir}/diagnostic.json`,JSON.stringify({mixed,same,browserErrors},null,2));await page.close();
+          } finally {await browser.close()}
+          JS
+          node .alert-copy-verify.mjs
+
+      - name: Wait for deployed copy policy
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 72); do
+            body=$(curl -fsSL "https://dmo18.github.io/rdr/?copy=${GITHUB_SHA}-${i}" || true)
+            if printf '%s' "$body" | grep -q 'data-copy="alert-copy-2026.08.12.1"'; then exit 0; fi
+            sleep 5
+          done
+          echo 'Pages did not publish alert copy policy' >&2
+          exit 1
+
+      - name: Verify deployed copy policy
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          mkdir -p /tmp/rdr-alert-copy/deployed
+          RDR_URL='https://dmo18.github.io/rdr/' RDR_OUT='/tmp/rdr-alert-copy/deployed' node .alert-copy-verify.mjs
+
+      - name: Image sanity
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          roots=[Path('/tmp/rdr-alert-copy/local')]
+          dep=Path('/tmp/rdr-alert-copy/deployed')
+          if dep.exists(): roots.append(dep)
+          for root in roots:
+              for name in ['one-svr-seven-other','three-svr']:
+                  p=root/f'{name}.png'; im=Image.open(p).convert('RGB'); assert im.size==(456,257),(p,im.size)
+                  assert len(im.getcolors(maxcolors=10000000) or [])>700,p
+          PY
+
+      - name: Upload alert copy QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdr-alert-copy
+          path: /tmp/rdr-alert-copy
+          if-no-files-found: warn
+          retention-days: 7
