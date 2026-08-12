@@ -19,25 +19,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'data-version="2026.08.12.5"' index.html
-          grep -q 'data-engine="live-mrms"' index.html
+          grep -q 'data-version="2026.08.12.6"' index.html
+          grep -q 'data-layout="broadcast-fullbleed"' index.html
+          grep -q '<script src="broadcast.js"></script>' index.html
+          grep -q 'top:0,bottom:0,mapHeight:257' core.js
           grep -q 'noaa-mrms-pds.s3.amazonaws.com' core.js
           grep -q 'MergedReflectivityQCComposite_00.50' core.js
-          grep -q 'surface_obs/MapServer' core.js
-          grep -q 'function loadSurfaceObs' context.js
-          grep -q "def.id!=='regional'" context.js
-          grep -q 'function drawStationPlots' render.js
-          grep -q 'function drawWindBarb' render.js
-          grep -q 'function radarCells' render.js
-          grep -q 'function drawImpactPanel' render.js
-          grep -q 'function drawHeader' render.js
-          grep -q 'function drawBottomRail' render.js
-          ! grep -q 'function drawWindFlow' render.js
+          grep -q 'function broadcastRadarSurfaces' broadcast.js
+          grep -q 'function broadcastCloudCanvas' broadcast.js
+          grep -q 'function broadcastCellLabels' broadcast.js
+          grep -q 'render=function' broadcast.js
           grep -q 'template!==41' radar.js
           grep -q 'meta.bits===24' radar.js
-          grep -q 'DecompressionStream' core.js
-          ! grep -R 'data/home.png\|data/radar.json\|scripts/ingest.py' -- index.html app.js core.js radar.js context.js render.js README.md
-          for f in app.js core.js radar.js context.js render.js; do node --check "$f"; done
+          ! grep -R 'data/home.png\|data/radar.json\|scripts/ingest.py' -- index.html app.js core.js radar.js context.js render.js broadcast.js README.md
+          for f in app.js core.js radar.js context.js render.js broadcast.js; do node --check "$f"; done
 
       - name: Probe current NOAA data sources
         shell: bash
@@ -61,7 +56,7 @@ jobs:
           npm install --no-save --package-lock=false puppeteer-core >/dev/null
           python3 -m pip install --disable-pip-version-check pillow >/dev/null
 
-      - name: Create exact-viewport renderer
+      - name: Create exact viewport renderer
         shell: bash
         run: |
           cat > .verify-render.mjs <<'JS'
@@ -77,20 +72,18 @@ jobs:
               const browserErrors=[];page.on('pageerror',e=>browserErrors.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push('console: '+m.text())});
               const sep=base.includes('?')?'&':'?',url=`${base}${sep}view=${v}&verify=1&ci=${Date.now()}`;
               await page.goto(url,{waitUntil:'domcontentloaded',timeout:120000});
-              try{
-                await page.waitForFunction(id=>{const p=document.querySelector('#panel'),s=window.__RDR__;return p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(s?.surface?.get(id)?.length||0)>=1},{timeout:120000,polling:250},v);
-              }catch(e){const diag=await page.evaluate(id=>({dataset:{...document.querySelector('#panel')?.dataset},state:window.__RDR__?{frames:window.__RDR__.frames?.length,surface:window.__RDR__.surface?.get(id)?.length,errors:window.__RDR__.errors}:null}),v);throw new Error(`${v} never reached live radar+surface: ${JSON.stringify(diag)} browser=${JSON.stringify(browserErrors)}`)}
+              await page.waitForFunction(id=>{const p=document.querySelector('#panel'),s=window.__RDR__;return p?.dataset?.version==='2026.08.12.6'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(s?.surface?.get(id)?.length||0)>=1},{timeout:120000,polling:250},v);
               await new Promise(r=>setTimeout(r,1200));
-              const diag=await page.evaluate(id=>{const p=document.querySelector('#panel'),s=window.__RDR__,latest=s.frames.at(-1)?.time;return{dataset:{...p.dataset},frames:s.frames.length,surface:s.surface.get(id)?.length||0,latest:latest?new Date(latest).toISOString():null,latestAgeMs:latest?Date.now()-new Date(latest).getTime():null,home:s.home,errors:s.errors,viewport:[innerWidth,innerHeight],panel:[p.getBoundingClientRect().width,p.getBoundingClientRect().height]}},v);
-              if(diag.dataset.radar!=='live'||diag.frames<1||diag.surface<1)throw new Error(`${v} missing live layers: ${JSON.stringify(diag)}`);
-              if(!(diag.latestAgeMs>=0&&diag.latestAgeMs<15*60*1000))throw new Error(`${v} radar is not fresh: ${JSON.stringify(diag)}`);
-              if(diag.viewport[0]!==456||diag.viewport[1]!==257)throw new Error(`${v} wrong viewport: ${JSON.stringify(diag.viewport)}`);
+              const diag=await page.evaluate(id=>{const p=document.querySelector('#panel'),s=window.__RDR__,latest=s.frames.at(-1)?.time;return{dataset:{...p.dataset},frames:s.frames.length,surface:s.surface.get(id)?.length||0,latestAgeMs:latest?Date.now()-new Date(latest).getTime():null,home:s.home,errors:s.errors,viewport:[innerWidth,innerHeight],panel:[p.getBoundingClientRect().width,p.getBoundingClientRect().height]}},v);
+              if(diag.dataset.layout!=='broadcast-fullbleed'||diag.dataset.radar!=='live'||diag.frames<1||diag.surface<1)throw new Error(`${v} missing full bleed live layers: ${JSON.stringify(diag)}`);
+              if(!(diag.latestAgeMs>=0&&diag.latestAgeMs<15*60*1000))throw new Error(`${v} radar stale: ${JSON.stringify(diag)}`);
+              if(diag.viewport[0]!==456||diag.viewport[1]!==257||diag.panel[0]!==456||diag.panel[1]!==257)throw new Error(`${v} wrong geometry: ${JSON.stringify(diag)}`);
               const panel=await page.$('#panel');await panel.screenshot({path:`${out}/${v}.png`});fs.writeFileSync(`${out}/${v}.json`,JSON.stringify({...diag,browserErrors},null,2));await page.close();
             }
           }finally{await browser.close()}
           JS
 
-      - name: Render every local scale from live NOAA data
+      - name: Render local scales from live NOAA data
         shell: bash
         run: |
           set -euo pipefail
@@ -106,13 +99,13 @@ jobs:
           set -euo pipefail
           for i in $(seq 1 40); do
             body=$(curl -fsSL "https://dmo18.github.io/rdr/?verify=${GITHUB_SHA}-${i}" || true)
-            if printf '%s' "$body" | grep -q 'data-version="2026.08.12.5"'; then exit 0; fi
+            if printf '%s' "$body" | grep -q 'data-version="2026.08.12.6"'; then exit 0; fi
             sleep 5
           done
           echo 'Pages did not publish the expected version' >&2
           exit 1
 
-      - name: Render every deployed scale from live NOAA data
+      - name: Render deployed scales from live NOAA data
         shell: bash
         run: |
           set -euo pipefail
@@ -133,13 +126,11 @@ jobs:
             const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});
             const browserErrors=[];page.on('pageerror',e=>browserErrors.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push('console: '+m.text())});
             await page.goto(`https://dmo18.github.io/rdr/?view=florida&full=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
-            await page.waitForFunction(()=>window.__RDR__?.frames?.length>=3&&window.__RDR__?.surface?.get('florida')?.length>=1&&document.querySelector('#panel')?.dataset?.radar==='live',{timeout:240000,polling:500});
-            await page.waitForFunction(()=>window.__RDR__?.severe?.lightning&&window.__RDR__?.severe?.mesh,{timeout:240000,polling:500});
-            await new Promise(r=>setTimeout(r,1800));
-            const diag=await page.evaluate(()=>({frames:window.__RDR__.frames.length,surface:window.__RDR__.surface.get('florida')?.length||0,severe:{lightning:!!window.__RDR__.severe.lightning,mesh:!!window.__RDR__.severe.mesh},errors:window.__RDR__.errors,radar:document.querySelector('#panel').dataset.radar,freshness:document.querySelector('#panel').dataset.freshness,surfaceState:document.querySelector('#panel').dataset.surface,surfaceLayer:document.querySelector('#panel').dataset.surfaceLayer}));
-            if(diag.radar!=='live'||diag.frames<3||diag.surface<1)throw new Error('full live layers failed: '+JSON.stringify(diag));
-            if(!diag.severe.lightning||!diag.severe.mesh)throw new Error('severe data stage did not load both MRMS fields: '+JSON.stringify(diag));
-            if(diag.errors.some(e=>/ReferenceError|invalid GRIB|unsupported PNG|unsupported GRIB/i.test(e)))throw new Error('runtime decoder error: '+JSON.stringify(diag));
+            await page.waitForFunction(()=>window.__RDR__?.frames?.length>=3&&window.__RDR__?.surface?.get('florida')?.length>=1&&window.__RDR__?.severe?.lightning&&window.__RDR__?.severe?.mesh&&document.querySelector('#panel')?.dataset?.radar==='live',{timeout:240000,polling:500});
+            await new Promise(r=>setTimeout(r,1600));
+            const diag=await page.evaluate(()=>({version:document.querySelector('#panel').dataset.version,layout:document.querySelector('#panel').dataset.layout,frames:window.__RDR__.frames.length,surface:window.__RDR__.surface.get('florida')?.length||0,severe:{lightning:!!window.__RDR__.severe.lightning,mesh:!!window.__RDR__.severe.mesh},errors:window.__RDR__.errors,radar:document.querySelector('#panel').dataset.radar,browserSize:[innerWidth,innerHeight]}));
+            if(diag.version!=='2026.08.12.6'||diag.layout!=='broadcast-fullbleed'||diag.radar!=='live'||diag.frames<3||diag.surface<1||!diag.severe.lightning||!diag.severe.mesh)throw new Error('full runtime failed: '+JSON.stringify(diag));
+            if(diag.errors.some(e=>/ReferenceError|SyntaxError|invalid GRIB|unsupported PNG|unsupported GRIB/i.test(e)))throw new Error('runtime decoder error: '+JSON.stringify(diag));
             const panel=await page.$('#panel');await panel.screenshot({path:'/tmp/renders/live/full-runtime.png'});fs.writeFileSync('/tmp/renders/live/full-runtime.json',JSON.stringify({...diag,browserErrors},null,2));
           }finally{await browser.close()}
           JS
@@ -158,17 +149,15 @@ jobs:
                   im=Image.open(p).convert('RGB')
                   assert im.size==(456,257), (scope,v,im.size)
                   px=list(im.getdata())
-                  colors=len(set(px))
-                  lit=sum(1 for r,g,b in px if max(r,g,b)>55)
-                  nonblack=sum(1 for r,g,b in px if r+g+b>25)
-                  assert colors>260, (scope,v,'too few colors',colors)
+                  colors=len(set(px)); lit=sum(1 for r,g,b in px if max(r,g,b)>55); nonblack=sum(1 for r,g,b in px if r+g+b>25)
+                  assert colors>300, (scope,v,'too few colors',colors)
                   assert lit>3000, (scope,v,'too dark',lit)
-                  assert nonblack>30000, (scope,v,'too empty',nonblack)
+                  assert nonblack>35000, (scope,v,'too empty',nonblack)
           PY
 
       - name: Upload verification renders
         uses: actions/upload-artifact@v4
         with:
-          name: rdr-enterprise-broadcast-renders
+          name: rdr-broadcast-fullbleed-renders
           path: /tmp/renders
           retention-days: 7
