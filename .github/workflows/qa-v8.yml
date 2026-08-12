@@ -1,0 +1,150 @@
+name: QA enterprise v8 candidate
+
+on:
+  push:
+    branches: ['qa/enterprise-v8']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Static candidate checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'data-version="2026.08.12.8"' index.html
+          grep -q 'data-layout="enterprise-v8"' index.html
+          grep -q 'function eRadarCanvas' enterprise-map.js
+          grep -q 'function eHeader' enterprise-ui.js
+          grep -q 'function eFooter' enterprise-ui.js
+          grep -q 'function eWarmCurrentView' enterprise-ui.js
+          grep -q 'function localCentroid' radar.js
+          grep -q 'await Promise.allSettled' app.js
+          ! grep -R -q 'broadcastCloudCanvas\|bGlass\|eMotion();' enterprise-*.js
+          ! grep -q 'data/home.png\|data/radar.json\|scripts/ingest.py' index.html app.js core.js radar.js context.js render.js enterprise-map.js enterprise-overlays.js enterprise-ui.js
+          for f in app.js core.js radar.js context.js render.js enterprise-map.js enterprise-overlays.js enterprise-ui.js qa/replay.js; do node --check "$f"; done
+
+      - name: Install QA dependencies
+        shell: bash
+        run: |
+          npm install --no-save --package-lock=false puppeteer-core >/dev/null
+          python3 -m pip install --disable-pip-version-check pillow >/dev/null
+
+      - name: Serve candidate locally
+        shell: bash
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/rdr-v8-http.log 2>&1 &
+          echo $! >/tmp/rdr-v8-http.pid
+          sleep 1
+
+      - name: Render exact live views and measure startup plus warm paint
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          mkdir -p /tmp/rdr-v8/views
+          cat > .qa-v8-live.mjs <<'JS'
+          import puppeteer from 'puppeteer-core';
+          import fs from 'node:fs';
+          const stats=a=>{a=[...a].sort((x,y)=>x-y);return{avg:a.length?a.reduce((x,y)=>x+y,0)/a.length:null,p50:a.length?a[Math.floor(a.length*.5)]:null,p95:a.length?a[Math.min(a.length-1,Math.floor(a.length*.95))]:null,max:a.length?a.at(-1):null,count:a.length}};
+          const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
+          const all={};
+          try{
+            for(const id of ['home','metro','florida','regional']){
+              const page=await browser.newPage();
+              await page.setViewport({width:456,height:257,deviceScaleFactor:1});
+              const browserErrors=[];
+              page.on('pageerror',e=>browserErrors.push('pageerror: '+e.message));
+              page.on('console',m=>{if(m.type()==='error')browserErrors.push('console: '+m.text())});
+              const t0=Date.now();
+              await page.goto(`http://127.0.0.1:8765/?view=${id}&verify=1&qa=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
+              await page.waitForFunction(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get(id);return p?.dataset?.version==='2026.08.12.8'&&p?.dataset?.layout==='enterprise-v8'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(s.surface?.get(id)?.length||0)>=1&&(b?.states?.length||0)>=1},{timeout:180000,polling:250},id);
+              const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);
+              const coldPrepMs=await page.evaluate(()=>eWarmCurrentView());
+              await page.evaluate(()=>{window.__RDR__.perf.samples=[]});
+              await new Promise(r=>setTimeout(r,2600));
+              const diag=await page.evaluate(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s.boundaries.get(id),latest=s.frames.at(-1)?.time;return{id,dataset:{...p.dataset},frames:s.frames.length,surface:s.surface.get(id)?.length||0,boundaries:{states:b?.states?.length||0,counties:b?.counties?.length||0},latestAgeMs:latest?Date.now()-new Date(latest).getTime():null,home:s.home,weather:s.weather,errors:s.errors,samples:[...(s.perf?.samples||[])],viewport:[innerWidth,innerHeight],panel:[p.getBoundingClientRect().width,p.getBoundingClientRect().height]};},id);
+              diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.coldPrepMs=coldPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=browserErrors;all[id]=diag;
+              await (await page.$('#panel')).screenshot({path:`/tmp/rdr-v8/views/${id}.png`});
+              fs.writeFileSync('/tmp/rdr-v8/views/metrics.json',JSON.stringify(all,null,2));
+              if(browserErrors.length)throw new Error(`browser ${id}: ${JSON.stringify(diag)}`);
+              if(!(diag.latestAgeMs>=0&&diag.latestAgeMs<15*60*1000))throw new Error(`stale ${id}: ${JSON.stringify(diag)}`);
+              if(diag.viewport[0]!==456||diag.viewport[1]!==257||diag.panel[0]!==456||diag.panel[1]!==257)throw new Error(`geometry ${id}: ${JSON.stringify(diag)}`);
+              if(diag.startupPaint.max!=null&&diag.startupPaint.max>250)throw new Error(`startup ${id}: ${JSON.stringify(diag.startupPaint)}`);
+              if(diag.coldPrepMs>350)throw new Error(`cold prep ${id}: ${JSON.stringify(diag)}`);
+              if(diag.paint.p95!=null&&diag.paint.p95>16)throw new Error(`warm p95 ${id}: ${JSON.stringify(diag.paint)}`);
+              await page.close();
+            }
+          } finally { await browser.close(); }
+          JS
+          node .qa-v8-live.mjs
+
+      - name: Exercise full live loop and severe fields
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          cat > .qa-v8-full.mjs <<'JS'
+          import puppeteer from 'puppeteer-core';
+          import fs from 'node:fs';
+          const stats=a=>{a=[...a].sort((x,y)=>x-y);return{avg:a.length?a.reduce((x,y)=>x+y,0)/a.length:null,p50:a.length?a[Math.floor(a.length*.5)]:null,p95:a.length?a[Math.min(a.length-1,Math.floor(a.length*.95))]:null,max:a.length?a.at(-1):null,count:a.length}};
+          const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
+          try{
+            const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});
+            const browserErrors=[];page.on('pageerror',e=>browserErrors.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push('console: '+m.text())});
+            const t0=Date.now();await page.goto(`http://127.0.0.1:8765/?view=florida&fullqa=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
+            await page.waitForFunction(()=>{const s=window.__RDR__,b=s?.boundaries?.get('florida'),p=document.querySelector('#panel');return p?.dataset?.version==='2026.08.12.8'&&p?.dataset?.layout==='enterprise-v8'&&p?.dataset?.radar==='live'&&s?.frames?.length>=4&&s?.severe?.lightning&&s?.severe?.mesh&&(b?.states?.length||0)>=1},{timeout:240000,polling:500});
+            const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);const coldPrepMs=await page.evaluate(()=>eWarmCurrentView());await page.evaluate(()=>{window.__RDR__.perf.samples=[]});await new Promise(r=>setTimeout(r,3000));
+            const diag=await page.evaluate(()=>{const s=window.__RDR__;return{frames:s.frames.length,severe:{lightning:!!s.severe.lightning,mesh:!!s.severe.mesh},errors:s.errors,samples:[...(s.perf?.samples||[])],panel:{...document.querySelector('#panel').dataset}}});diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.coldPrepMs=coldPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=browserErrors;
+            await (await page.$('#panel')).screenshot({path:'/tmp/rdr-v8/views/full-runtime.png'});fs.writeFileSync('/tmp/rdr-v8/views/full-runtime.json',JSON.stringify(diag,null,2));
+            if(browserErrors.length)throw new Error(JSON.stringify(diag));
+            if(diag.errors.some(e=>/ReferenceError|SyntaxError|invalid GRIB|unsupported PNG|unsupported GRIB/i.test(e)))throw new Error(`runtime decoder: ${JSON.stringify(diag)}`);
+            if(diag.startupPaint.max!=null&&diag.startupPaint.max>300)throw new Error(`startup: ${JSON.stringify(diag)}`);
+            if(diag.coldPrepMs>450)throw new Error(`cold prep: ${JSON.stringify(diag)}`);
+            if(diag.paint.p95!=null&&diag.paint.p95>16)throw new Error(`warm p95: ${JSON.stringify(diag)}`);
+          } finally { await browser.close(); }
+          JS
+          node .qa-v8-full.mjs
+
+      - name: Visual regression gates and contact sheet
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          root=Path('/tmp/rdr-v8/views')
+          views=['home','metro','florida','regional']
+          for v in views+['full-runtime']:
+              p=root/f'{v}.png';im=Image.open(p).convert('RGB');assert im.size==(456,257),(v,im.size)
+              px=list(im.getdata());colors=len(set(px));bright=sum(1 for r,g,b in px if max(r,g,b)>120);nonblack=sum(1 for r,g,b in px if r+g+b>35)
+              assert colors>1200,(v,'too few colors',colors)
+              assert bright>1200,(v,'too dark',bright)
+              assert nonblack>50000,(v,'too empty',nonblack)
+              if v in views:
+                  land=sum(1 for r,g,b in px if abs(r-22)<=3 and abs(g-37)<=3 and abs(b-45)<=3)
+                  assert land>5000,(v,'blank geography regression',land)
+              for y0,y1 in ((0,29),(220,257)):
+                  band=[px[y*456+x] for y in range(y0,y1) for x in range(456)]
+                  assert len(set(band))>80,(v,'flat band regression',y0)
+          sheet=Image.new('RGB',(912,514))
+          for i,v in enumerate(views):sheet.paste(Image.open(root/f'{v}.png').convert('RGB'),((i%2)*456,(i//2)*257))
+          sheet.save(root/'contact-sheet.png')
+          for v in views+['full-runtime']:
+              im=Image.open(root/f'{v}.png').convert('RGB');im.resize((1824,1028),Image.Resampling.NEAREST).save(root/f'{v}-4x.png')
+          PY
+
+      - name: Upload enterprise v8 QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdr-enterprise-v8-qa
+          path: /tmp/rdr-v8/views
+          if-no-files-found: warn
+          retention-days: 7
