@@ -6,22 +6,23 @@
 - Fixed viewport: 456 x 257
 - Primary location: 26.06197904865014, -80.18787062578414
 - Product type: always-on live radar status display
-- UX direction: enterprise-v8
+- Production UX: enterprise-v8
+- Public version marker: 2026.08.12.8
 
 ## Live data engine
 
 | Capability | Source | Production path | Status |
 |---|---|---|---|
-| Reflectivity | NOAA MRMS | S3 GRIB2, browser decoded | retained |
-| Radar loop | NOAA MRMS | recent GRIB2 objects | retained |
-| Lightning probability | NOAA MRMS | GRIB2 numeric grid | retained |
-| Hail / MESH | NOAA MRMS | GRIB2 numeric grid | retained |
-| State/county geography | NWS | ArcGIS GeoJSON | retained |
-| Severe warnings | NWS | ArcGIS GeoJSON | retained |
-| Tropical geometry | NHC/NWS | ArcGIS GeoJSON | retained |
-| Current weather | api.weather.gov | JSON quantitative values | retained, unit handling corrected |
-| Hourly precipitation probability | api.weather.gov | JSON | promoted in v8 header |
-| Surface observations | NWS/MADIS | ArcGIS GeoJSON | retained as context, removed from visual clutter |
+| Reflectivity | NOAA MRMS | S3 GRIB2, browser decoded | live production |
+| Radar loop | NOAA MRMS | recent GRIB2 objects | live production |
+| Lightning probability | NOAA MRMS | GRIB2 numeric grid | live production |
+| Hail / MESH | NOAA MRMS | GRIB2 numeric grid | live production |
+| State/county geography | NWS | ArcGIS GeoJSON | live production |
+| Severe warnings | NWS | ArcGIS GeoJSON | live production |
+| Tropical geometry | NHC/NWS | ArcGIS GeoJSON | live production |
+| Current weather | api.weather.gov | JSON quantitative values | live production, unit handling corrected |
+| Hourly precipitation probability | api.weather.gov | JSON | live production |
+| Surface observations | NWS/MADIS | ArcGIS GeoJSON | live context input |
 
 ## Enterprise v8 implementation
 
@@ -46,35 +47,47 @@
 - Split presentation into `enterprise-core.js`, `enterprise-map.js`, `enterprise-overlays.js` and `enterprise-ui.js`.
 - Removed the rejected `broadcast.js` renderer and legacy `render.js` presentation path.
 
-## Final isolated QA acceptance
+## Isolated QA acceptance
 
-Branch: `qa/enterprise-v8`
+The isolated `qa/enterprise-v8` branch passed full live Chromium QA at exact 456 x 257 on all four views and the full production-style runtime before promotion.
 
-Final full live Chromium QA passed at exact 456 x 257 on all four views and the full production-style runtime.
-
-Latest accepted single-view measurements:
+Accepted single-view measurements from the final design QA:
 
 - NEIGHBORHOOD: startup preparation 96.7 ms, visible startup paint max 19.8 ms, warm p95 0.8 ms.
 - SOUTH FLORIDA: startup preparation 96.1 ms, visible startup paint max 20.7 ms, warm p95 0.8 ms.
 - FLORIDA: startup preparation 102.8 ms, visible startup paint max 40.9 ms, warm p95 0.9 ms.
 - GULF + CARIBBEAN: startup preparation 106.8 ms, visible startup paint max 41.6 ms, warm p95 1.0 ms.
 
-Latest accepted full runtime:
+The isolated full runtime loaded four radar frames, lightning probability and MESH with no browser or decoder errors.
 
-- 4 decoded radar frames
+## Public production verification
+
+The exact tested v8 branch was fast-forwarded to `main`. GitHub Pages published version 2026.08.12.8 and the public deployment passed the same live Chromium, geometry, geography, performance and severe-runtime gates.
+
+Public production measurements from the accepted deployment:
+
+- NEIGHBORHOOD: ready 4.59 s, startup preparation 125.9 ms, startup paint max 25.5 ms, warm p95 1.0 ms.
+- SOUTH FLORIDA: ready 4.72 s, startup preparation 117.0 ms, startup paint max 25.8 ms, warm p95 1.1 ms.
+- FLORIDA: ready 4.51 s, startup preparation 143.2 ms, startup paint max 57.4 ms, warm p95 1.1 ms.
+- GULF + CARIBBEAN: ready 5.57 s, startup preparation 138.2 ms, startup paint max 59.0 ms, warm p95 1.1 ms.
+- Full four-frame runtime: ready 8.50 s, startup preparation 141.4 ms, startup paint max 60.3 ms, warm p95 3.4 ms, warm max 4.3 ms.
+
+Production verification confirmed:
+
+- exact 456 x 257 viewport and panel
+- current MRMS data under the freshness limit
+- state geography present in every view
+- surface context present in every view
+- four decoded radar frames in full runtime
 - MRMS lightning probability loaded
 - MRMS MESH loaded
-- startup preparation 118.3 ms
-- visible startup paint max 43.4 ms
-- warm paint p95 4.3 ms
-- warm paint max 10.6 ms
+- corrected NWS observation wind conversion
 - no browser errors
-- no runtime/decoder errors
-
-The live current-weather conversion test reported 9 mph at KFLL after the unit fix, instead of the erroneous 41 mph produced by the old conversion.
-
-Automated visual QA verified state geography in every view, exact geometry, sufficient map occupancy/color, stable structural header/footer bands and nonblank land. HOME, SOUTH FLORIDA, FLORIDA, GULF + CARIBBEAN and full-runtime captures were manually inspected at native size and 4x enlargement after the cleaned build.
+- no runtime or GRIB decoder errors
+- blank-geography regression gate passed
+- automated visual occupancy/color gates passed
+- public HOME, SOUTH FLORIDA, FLORIDA, GULF + CARIBBEAN and full-runtime captures manually inspected at native size and 4x enlargement
 
 ## Rollout state
 
-Enterprise v8 has completed isolated design, implementation, correctness, live-data, performance and visual QA. The next action is atomic promotion of the exact tested branch head to `main`, followed by the same local and public GitHub Pages verification and a final manual review of the public captures before delivery is reported.
+Enterprise v8 is the verified public production build on `main` and GitHub Pages.
