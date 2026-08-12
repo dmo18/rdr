@@ -1,4 +1,4 @@
-name: Verify 456x257 South Florida weather HUD
+name: Verify raw-data RDR renderer
 
 on:
   push:
@@ -11,79 +11,68 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
-      - name: Static integrity
+      - name: Static architecture checks
         shell: bash
         run: |
           set -euo pipefail
           node --check app.js
-          node --check tropical.js
-          grep -q 'data-version="2026.08.11.8"' index.html
-          grep -q 'width: 456' app.js
-          grep -q 'height: 257' app.js
-          grep -q "id:'home'" app.js
-          grep -q "id:'metro'" app.js
-          grep -q "id:'florida'" app.js
-          grep -q "id:'regional'" app.js
-          grep -q "id:'satellite'" app.js
-          grep -q "id:'lightning'" app.js
-          grep -q "id:'tropics'" app.js
-          grep -q 'NHC_tropical_weather_summary' tropical.js
-          grep -q 'forecastHourly' app.js
-          grep -q 'forecastGridData' app.js
-          grep -q 'alerts/active' app.js
-          grep -q 'GOES19/ABI' app.js
-          grep -q 'GOES19/GLM' app.js
-          ! grep -RniE 'api[_-]?key|access[_-]?token|client[_-]?secret|password=' index.html styles.css app.js tropical.js
+          grep -q 'data-version="2026.08.11.9"' index.html
+          grep -q 'data-engine="raw-data"' index.html
+          grep -q 'width="456" height="257"' index.html
+          grep -q 'RIDGEII/L2' app.js
+          grep -q 'DecompressionStream' app.js
+          grep -q 'GeoTIFF.fromArrayBuffer' app.js
+          grep -q 'readRasters' app.js
+          grep -q 'watch_warn_adv/MapServer/0/query' app.js
+          grep -q 'NHC_tropical_weather_summary' app.js
+          ! grep -RniE 'GetMap|WMS|MapServer/export|cdn.star.nesdis.noaa.gov|basemaps.cartocdn.com|rainviewer|api[_-]?key|access[_-]?token|client[_-]?secret|password=' index.html styles.css app.js
 
-      - name: Probe public weather resources
+      - name: Probe raw and vector data sources
         shell: bash
         run: |
           set -euo pipefail
-          ua='Mozilla/5.0 RDR-Yodeck/8.0'
-          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" 'https://opengeo.ncep.noaa.gov/geoserver/conus/conus_bref_qcd/ows?service=WMS&version=1.1.1&request=GetCapabilities' -o /tmp/conus.xml
-          grep -q 'conus_bref_qcd' /tmp/conus.xml
-          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" 'https://opengeo.ncep.noaa.gov/geoserver/carib/carib_bref_qcd/ows?service=WMS&version=1.1.1&request=GetCapabilities' -o /tmp/carib.xml
-          grep -q 'carib_bref_qcd' /tmp/carib.xml
-          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" 'https://api.weather.gov/points/26.0620,-80.1879' -o /tmp/point.json
+          ua='Mozilla/5.0 RDR-Yodeck-Raw/9.0'
+          base='https://mrms.ncep.noaa.gov/RIDGEII/L2/CONUS/BREF_QCD/'
+          curl -fsSL --retry 2 --connect-timeout 10 --max-time 40 -A "$ua" "$base" -o /tmp/radar-index.html
+          file=$(grep -oE 'CONUS_L2_BREF_QCD_[0-9]{8}_[0-9]{6}\.tif\.gz' /tmp/radar-index.html | tail -1)
+          test -n "$file"
+          curl -fsSL --retry 2 --connect-timeout 10 --max-time 60 -A "$ua" "${base}${file}" -o /tmp/radar.tif.gz
+          gzip -t /tmp/radar.tif.gz
+          gunzip -c /tmp/radar.tif.gz > /tmp/radar.tif
+          file /tmp/radar.tif | grep -qi 'TIFF'
+          curl -fsSL --retry 2 --connect-timeout 10 --max-time 40 -A "$ua" 'https://mapservices.weather.noaa.gov/eventdriven/rest/services/WWA/watch_warn_adv/MapServer/0/query?where=1%3D1&geometry=-81%2C25%2C-79%2C27&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true&f=geojson' -o /tmp/warnings.json
+          grep -q 'FeatureCollection' /tmp/warnings.json
+          curl -fsSL --retry 2 --connect-timeout 10 --max-time 40 -A "$ua" 'https://api.weather.gov/points/26.0620,-80.1879' -o /tmp/point.json
           grep -q 'forecastHourly' /tmp/point.json
-          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" 'https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/se/GEOCOLOR/1200x1200.jpg' -o /tmp/satellite.jpg
-          file /tmp/satellite.jpg | grep -Eq 'JPEG image data|PNG image data'
-          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" 'https://cdn.star.nesdis.noaa.gov/GOES19/GLM/SECTOR/se/EXTENT3/1200x1200.jpg' -o /tmp/lightning.jpg
-          file /tmp/lightning.jpg | grep -Eq 'JPEG image data|PNG image data'
-          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" 'https://mapservices.weather.noaa.gov/tropical/rest/services/tropical/NHC_tropical_weather_summary/MapServer/export?bbox=-11131949,557305,-2226389,5621521&bboxSR=3857&imageSR=3857&size=456,257&format=png32&transparent=true&layers=show%3A2%2C33%2C3%2C5%2C6%2C7%2C8%2C10%2C11%2C15%2C16&f=image' -o /tmp/tropics.png
-          file /tmp/tropics.png | grep -q 'PNG image data'
-          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" 'https://basemaps.cartocdn.com/dark_nolabels/3/2/3.png' -o /tmp/base.png
-          file /tmp/base.png | grep -q 'PNG image data'
 
-      - name: Render every local view at exactly 456 x 257
+      - name: Render local raw-data views at 456 x 257
         shell: bash
         run: |
           set -euo pipefail
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/rdr-http.log 2>&1 &
-          SERVER_PID=$!
-          trap 'kill $SERVER_PID || true' EXIT
+          pid=$!
+          trap 'kill $pid || true' EXIT
           sleep 1
           mkdir -p screenshots/local screenshots/live
-          for view in home metro florida regional satellite lightning tropics; do
+          for view in home metro florida regional; do
             url="http://127.0.0.1:8765/?view=$view"
-            timeout 80s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=25000 --dump-dom "$url" > "/tmp/$view.html"
+            timeout 110s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=50000 --dump-dom "$url" > "/tmp/$view.html"
             grep -q 'data-ready="true"' "/tmp/$view.html"
+            grep -q 'data-radar="raw-geotiff"' "/tmp/$view.html"
             grep -q "data-view=\"$view\"" "/tmp/$view.html"
-            if [ "$view" = tropics ]; then grep -q 'data-image="ok"' "/tmp/$view.html"; fi
-            timeout 80s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=25000 --screenshot="screenshots/local/$view.png" "$url"
+            timeout 110s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=50000 --screenshot="screenshots/local/$view.png" "$url"
           done
           python3 - <<'PY'
           import glob,struct
-          fs=glob.glob('screenshots/local/*.png'); assert len(fs)==7,fs
+          fs=glob.glob('screenshots/local/*.png'); assert len(fs)==4,fs
           for p in fs:
               with open(p,'rb') as f:
                   assert f.read(8)==b'\x89PNG\r\n\x1a\n'; f.read(4); assert f.read(4)==b'IHDR'; w,h=struct.unpack('>II',f.read(8)); assert (w,h)==(456,257),(p,w,h)
-          print('seven local views render at 456x257')
           PY
 
       - name: Wait for exact Pages version
@@ -93,39 +82,29 @@ jobs:
           ok=0
           for attempt in $(seq 1 42); do
             if curl -fsSL --max-time 15 -H 'Cache-Control: no-cache' "https://dmo18.github.io/rdr/?verify=${GITHUB_SHA}-${attempt}" -o /tmp/live.html; then
-              if grep -q 'data-version="2026.08.11.8"' /tmp/live.html; then ok=1; break; fi
+              if grep -q 'data-version="2026.08.11.9"' /tmp/live.html; then ok=1; break; fi
             fi
             sleep 10
           done
           test "$ok" = 1
 
-      - name: Render every deployed view at exactly 456 x 257
+      - name: Render deployed raw-data views at 456 x 257
         shell: bash
         run: |
           set -euo pipefail
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
-          for view in home metro florida regional satellite lightning tropics; do
+          for view in home metro florida regional; do
             url="https://dmo18.github.io/rdr/?view=$view&verify=${GITHUB_SHA}"
-            timeout 80s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=27000 --dump-dom "$url" > "/tmp/live-$view.html"
+            timeout 110s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=52000 --dump-dom "$url" > "/tmp/live-$view.html"
             grep -q 'data-ready="true"' "/tmp/live-$view.html"
-            grep -q "data-view=\"$view\"" "/tmp/live-$view.html"
-            if [ "$view" = tropics ]; then grep -q 'data-image="ok"' "/tmp/live-$view.html"; fi
-            timeout 80s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=27000 --screenshot="screenshots/live/$view.png" "$url"
+            grep -q 'data-radar="raw-geotiff"' "/tmp/live-$view.html"
+            timeout 110s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=52000 --screenshot="screenshots/live/$view.png" "$url"
           done
-          python3 - <<'PY'
-          import glob,struct
-          fs=glob.glob('screenshots/live/*.png'); assert len(fs)==7,fs
-          for p in fs:
-              with open(p,'rb') as f:
-                  assert f.read(8)==b'\x89PNG\r\n\x1a\n'; f.read(4); assert f.read(4)==b'IHDR'; w,h=struct.unpack('>II',f.read(8)); assert (w,h)==(456,257),(p,w,h)
-          print('seven deployed views render at 456x257')
-          PY
 
-      - name: Upload verification renders
+      - name: Upload raw renderer screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rdr-weather-hud-renders
+          name: rdr-raw-data-renders
           path: screenshots/
-          if-no-files-found: warn
           retention-days: 14

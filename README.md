@@ -1,44 +1,26 @@
-# RDR South Florida Weather HUD
+# RDR South Florida raw-data renderer
 
-A fixed **456 x 257** unattended Yodeck weather instrument centered on `26.06197904865014, -80.18787062578414`.
+RDR is a fixed 456 x 257 Yodeck weather instrument centered on the home location in South Florida.
 
-The 456 x 257 geometry is intentional and must remain hardcoded for the target Yodeck region. The application scales that exact canvas uniformly when previewed elsewhere.
+## Architecture
 
-## Product model
+The browser is the renderer. Weather services supply raw numeric grids or vector features only. RDR does not embed finished radar maps, satellite JPEGs, exported MapServer images, WMS map images, or third-party radar screens.
 
-RDR is one automatic weather HUD. It uses the full canvas and rotates through weather views without touch, mouse, keyboard, or other user interaction.
+### Data ingested
 
-1. **HOME**: neighborhood radar plus exact home precipitation state, nearest rain, and a four-hour forecast strip.
-2. **BROWARD / MIAMI**: metro radar with the same home and short-range weather context.
-3. **FLORIDA**: peninsula-scale quality-controlled radar and active warning polygons.
-4. **GULF / CUBA**: regional radar across the Gulf, Florida, Cuba, the Keys, and the Bahamas.
-5. **SATELLITE**: live GOES East Southeast geocolor imagery for clouds.
-6. **LIGHTNING**: live GOES East GLM flash-extent-density imagery.
-7. **TROPICS**: NHC seven-day development outlook plus active tropical cyclone forecast tracks, cones, watches, warnings, and wind fields on an Atlantic basemap.
+- NOAA/NCEP RIDGE II MRMS compressed GeoTIFF grids for quality-controlled base and composite reflectivity.
+- NOAA/NWS warning polygons from the event-driven ArcGIS feature service as GeoJSON.
+- NOAA/NWS state and county reference geometry as GeoJSON.
+- NOAA/NHC tropical outlook, track, cone, wind and watch/warning objects as GeoJSON.
+- NOAA/NWS point/hourly forecast JSON for the home weather readout.
 
-Views rotate automatically in about one minute. `?view=home`, `?view=metro`, `?view=florida`, `?view=regional`, `?view=satellite`, `?view=lightning`, and `?view=tropics` force a view for testing. `?demo=1` supplies deterministic local data for layout testing when public data services are unavailable.
+The GeoTIFF files are fetched, gunzipped in the browser, decoded to numeric dBZ values with geotiff.js, resampled to the current viewport, colored with the RDR palette, animated and composited on the 456 x 257 canvas. Home precipitation classification, nearest-rain distance and storm motion are computed locally from the numeric radar arrays.
 
-## Always-visible intelligence
+## Views
 
-- HOME precipitation classification: `DRY`, `SPRINKLE`, `RAIN`, `HEAVY`, or `INTENSE`.
-- Estimated nearest-rain distance and bearing when HOME is dry.
-- Current hourly temperature and compact weather code.
-- Next four hourly temperature, precipitation probability, and weather state on local views.
-- NWS grid sky-cover percentage.
-- Thunderstorm presence in the next four NWS hourly periods.
-- Active NWS alert summary for the home point.
-- Radar-loop range and latest frame time.
+- HOME
+- BROWARD / MIAMI
+- FLORIDA
+- GULF / CUBA
 
-## Public resources
-
-No paid service, account, API key, token, or registration is required.
-
-- NOAA/NWS OpenGeo WMS quality-controlled radar and warning services.
-- NWS API hourly forecast, grid data, and point alerts.
-- NOAA/NESDIS GOES East imagery for cloud and lightning views.
-- NOAA/NWS/NHC tropical ArcGIS service for seven-day development outlooks, active tracks, cones, watches, warnings, and wind fields.
-- CARTO dark no-label basemap tiles with OpenStreetMap geographic data.
-
-## Deployment
-
-GitHub Pages publishes `main` at `https://dmo18.github.io/rdr/`.
+All views use the same renderer and data model. They differ only in geographic extent and which raw MRMS domain is needed.
