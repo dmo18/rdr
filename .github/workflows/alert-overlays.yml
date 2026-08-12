@@ -46,6 +46,23 @@ jobs:
           import fs from 'node:fs';
           const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
           try{
+            const live={};
+            for(const id of ['home','metro','florida','regional']){
+              const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const errors=[];
+              page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+              await page.goto(`http://127.0.0.1:8765/?view=${id}&verify=1&livealerts=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
+              await page.waitForFunction(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get(id);return p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(b?.states?.length||0)>=1}, {timeout:180000,polling:250}, id);
+              await page.waitForFunction(()=>document.querySelector('#panel')?.dataset?.alerts!=='loading',{timeout:30000,polling:250});
+              await page.evaluate(()=>render(performance.now()));
+              const diag=await page.evaluate(()=>({feed:document.querySelector('#panel').dataset.alerts,alerts:eWarningsInView().map(x=>({code:x.meta.code,name:x.meta.name,sig:x.meta.sig})),ui:{...state.alertUi},errors:[...state.errors]}));diag.browserErrors=errors;live[id]=diag;
+              await (await page.$('#panel')).screenshot({path:`/tmp/rdr-alerts/live-${id}.png`});
+              if(errors.length)throw new Error(`browser ${id}: ${JSON.stringify(diag)}`);
+              if(diag.feed==='unavailable')throw new Error(`live source ${id}: ${JSON.stringify(diag)}`);
+              if(diag.alerts.length&&(diag.ui.boundaries!==diag.alerts.length||diag.ui.summary!==true))throw new Error(`live render contract ${id}: ${JSON.stringify(diag)}`);
+              await page.close();
+            }
+            fs.writeFileSync('/tmp/rdr-alerts/live-alerts.json',JSON.stringify(live,null,2));
+
             const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const errors=[];
             page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
             await page.goto(`http://127.0.0.1:8765/?view=home&verify=1&alerts=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
