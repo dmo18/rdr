@@ -19,7 +19,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'data-version="2026.08.12.1"' index.html
+          grep -q 'data-version="2026.08.12.2"' index.html
           grep -q 'data-engine="live-mrms"' index.html
           grep -q 'noaa-mrms-pds.s3.amazonaws.com' core.js
           grep -q 'MergedReflectivityQCComposite_00.50' core.js
@@ -27,6 +27,7 @@ jobs:
           grep -q 'function loadSurfaceObs' context.js
           grep -q 'function drawCloudField' render.js
           grep -q 'function drawWindFlow' render.js
+          grep -q 'const scale=' render.js
           grep -q 'function drawSevereOverlay' render.js
           grep -q 'template!==41' radar.js
           grep -q 'meta.bits===24' radar.js
@@ -101,7 +102,7 @@ jobs:
           set -euo pipefail
           for i in $(seq 1 40); do
             body=$(curl -fsSL "https://dmo18.github.io/rdr/?verify=${GITHUB_SHA}-${i}" || true)
-            if printf '%s' "$body" | grep -q 'data-version="2026.08.12.1"'; then exit 0; fi
+            if printf '%s' "$body" | grep -q 'data-version="2026.08.12.2"'; then exit 0; fi
             sleep 5
           done
           echo 'Pages did not publish the expected version' >&2
