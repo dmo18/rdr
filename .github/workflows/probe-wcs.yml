@@ -36,27 +36,29 @@ jobs:
           const prefix=`CONUS/MergedReflectivityQCComposite_00.50/${day}/`;
           const list=`https://noaa-mrms-pds.s3.amazonaws.com/?list-type=2&prefix=${encodeURIComponent(prefix)}&max-keys=1000`;
           const lr=await fetch(list); if(!lr.ok) throw new Error(`list ${lr.status}`);
-          console.log('LIST_CORS',lr.headers.get('access-control-allow-origin'));
           const xml=await lr.text();
           const keys=[...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map(m=>m[1]).filter(k=>k.endsWith('.grib2.gz')).sort();
           if(!keys.length) throw new Error(`no keys for ${prefix}`);
           const key=keys.at(-1),url=`https://noaa-mrms-pds.s3.amazonaws.com/${key}`;
           const rr=await fetch(url); if(!rr.ok) throw new Error(`object ${rr.status}`);
-          console.log('OBJECT_CORS',rr.headers.get('access-control-allow-origin'),'KEY',key,'BYTES',rr.headers.get('content-length'));
-          const gz=Buffer.from(await rr.arrayBuffer()),raw=zlib.gunzipSync(gz);
-          console.log('GRIB_BYTES',raw.length,'MAGIC',raw.subarray(0,4).toString());
-          await new Promise((resolve,reject)=>grib.readData(new DataView(raw.buffer,raw.byteOffset,raw.byteLength),(err,msgs)=>{
+          const gz=Buffer.from(await rr.arrayBuffer()),raw=zlib.gunzipSync(gz),ab=raw.buffer.slice(raw.byteOffset,raw.byteOffset+raw.byteLength);
+          console.log('KEY',key,'GZIP_BYTES',gz.length,'GRIB_BYTES',raw.length,'MAGIC',raw.subarray(0,4).toString());
+          await new Promise((resolve,reject)=>grib.readData(ab,(err,msgs)=>{
             if(err)return reject(err);
-            const f=msgs[0]?.fields?.[0];
-            const data=f?.data||[];
-            let lo=Infinity,hi=-Infinity,finite=0;
-            for(const x of data){if(Number.isFinite(x)){finite++; if(x<lo)lo=x;if(x>hi)hi=x}}
+            const f=msgs[0]?.fields?.[0],data=f?.data||[];let lo=Infinity,hi=-Infinity,finite=0;
+            for(const x of data){if(Number.isFinite(x)){finite++;if(x<lo)lo=x;if(x>hi)hi=x}}
             console.log('MESSAGES',msgs.length,'TEMPLATE',f?.representation?.templateNumber?.value,'GRID',f?.grid?.definition?.ni,f?.grid?.definition?.nj,'POINTS',data.length,'FINITE',finite,'MIN',lo,'MAX',hi,'REF',msgs[0]?.referenceTime?.toISOString?.());
-            if(!data.length||finite<1000||!(hi>lo)) return reject(new Error('numeric data not decoded'));
+            if(!data.length||finite<1000||!(hi>lo))return reject(new Error('numeric data not decoded'));
             resolve();
           }));
+          console.log('LIST',list);console.log('OBJECT',url);
           JS
-          node /tmp/decode.mjs
+          node /tmp/decode.mjs | tee /tmp/decode.out
+          obj=$(grep '^OBJECT ' /tmp/decode.out | cut -d' ' -f2-)
+          list=$(grep '^LIST ' /tmp/decode.out | cut -d' ' -f2-)
+          echo '--- CORS with browser-like Origin'
+          curl -sSI -H 'Origin: http://127.0.0.1:8765' "$list" | grep -iE 'HTTP/|access-control|content-type' || true
+          curl -sSI -H 'Origin: http://127.0.0.1:8765' "$obj" | grep -iE 'HTTP/|access-control|content-type' || true
 
       - name: Build browser parser bundle
         shell: bash
@@ -70,15 +72,12 @@ jobs:
           cat > /tmp/probe/index.html <<'HTML'
           <!doctype html><meta charset="utf-8"><body data-ready="false"><pre id="out">starting</pre><script src="grib.bundle.js"></script><script>
           (async()=>{try{
-            const day=new Date().toISOString().slice(0,10).replaceAll('-','');
-            const prefix=`CONUS/MergedReflectivityQCComposite_00.50/${day}/`;
-            const lr=await fetch(`https://noaa-mrms-pds.s3.amazonaws.com/?list-type=2&prefix=${encodeURIComponent(prefix)}&max-keys=1000`,{cache:'no-store'});
-            if(!lr.ok)throw Error('list '+lr.status);
-            const xml=await lr.text(),keys=[...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map(m=>m[1]).filter(k=>k.endsWith('.grib2.gz')).sort();
-            if(!keys.length)throw Error('no keys');
+            const day=new Date().toISOString().slice(0,10).replaceAll('-',''),prefix=`CONUS/MergedReflectivityQCComposite_00.50/${day}/`;
+            const lr=await fetch(`https://noaa-mrms-pds.s3.amazonaws.com/?list-type=2&prefix=${encodeURIComponent(prefix)}&max-keys=1000`,{cache:'no-store'});if(!lr.ok)throw Error('list '+lr.status);
+            const xml=await lr.text(),keys=[...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map(m=>m[1]).filter(k=>k.endsWith('.grib2.gz')).sort();if(!keys.length)throw Error('no keys');
             const key=keys.at(-1),rr=await fetch('https://noaa-mrms-pds.s3.amazonaws.com/'+key,{cache:'no-store'});if(!rr.ok)throw Error('object '+rr.status);
             const ds=new DecompressionStream('gzip'),raw=await new Response(new Blob([await rr.arrayBuffer()]).stream().pipeThrough(ds)).arrayBuffer();
-            GribJS.readData(new DataView(raw),(err,msgs)=>{if(err)throw err;const f=msgs[0]?.fields?.[0],data=f?.data||[];let lo=Infinity,hi=-Infinity,n=0;for(const x of data){if(Number.isFinite(x)){n++;lo=Math.min(lo,x);hi=Math.max(hi,x)}};document.body.dataset.ready='true';document.body.dataset.points=String(data.length);document.body.dataset.template=String(f?.representation?.templateNumber?.value);document.body.dataset.key=key;document.getElementById('out').textContent=`${key}\npoints=${data.length} finite=${n} min=${lo} max=${hi}`;});
+            GribJS.readData(raw,(err,msgs)=>{if(err){document.body.dataset.error=String(err);return}const f=msgs[0]?.fields?.[0],data=f?.data||[];let lo=Infinity,hi=-Infinity,n=0;for(const x of data){if(Number.isFinite(x)){n++;lo=Math.min(lo,x);hi=Math.max(hi,x)}}document.body.dataset.ready='true';document.body.dataset.points=String(data.length);document.body.dataset.template=String(f?.representation?.templateNumber?.value);document.body.dataset.key=key;document.getElementById('out').textContent=`${key}\npoints=${data.length} finite=${n} min=${lo} max=${hi}`;});
           }catch(e){document.body.dataset.error=String(e);document.getElementById('out').textContent=String(e)}})();
           </script>
           HTML
@@ -91,7 +90,7 @@ jobs:
           cd /tmp/probe
           python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/http.log 2>&1 &
           pid=$!; trap 'kill $pid || true' EXIT; sleep 1
-          timeout 120s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --virtual-time-budget=90000 --dump-dom 'http://127.0.0.1:8765/' > /tmp/dom.html
+          timeout 150s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --virtual-time-budget=110000 --dump-dom 'http://127.0.0.1:8765/' > /tmp/dom.html
           cat /tmp/dom.html
           grep -q 'data-ready="true"' /tmp/dom.html
           grep -Eq 'data-points="[1-9][0-9]{4,}"' /tmp/dom.html
