@@ -1,24 +1,31 @@
 # RDR South Florida
 
-RDR is a fixed 456 x 257 Yodeck weather instrument built around an ingestion pipeline, not external weather-map embeds.
+RDR is a fixed 456 x 257 Yodeck weather instrument centered on 26.06197904865014, -80.18787062578414.
 
-## Architecture
+The production radar is generated in the browser from NOAA MRMS GRIB2 data. The page lists the current public MRMS objects from the NOAA Open Data S3 bucket, downloads the newest quality-controlled composite reflectivity field, expands the GRIB2 gzip stream, decodes GRIB2 Data Representation Template 41 PNG packing, reconstructs the numeric grid values, resamples them into the four display scales, and applies the RDR color table locally. The application does not depend on a finished third-party radar image or a scheduled snapshot pipeline.
 
-1. `.github/workflows/ingest.yml` runs every five minutes.
-2. `scripts/ingest.py` downloads NOAA/NCEP MRMS compressed GeoTIFF radar grids and NOAA/NWS/NHC machine-readable vector/forecast feeds.
-3. The ingest script decodes numeric reflectivity, crops/resamples it to RDR's geographic views, applies RDR's own radar palette, computes HOME precipitation state, nearest rain and motion, and normalizes warnings/tropical/forecast objects.
-4. The normalized output is published under `data/` with the site.
-5. `app.js` renders only those same-origin RDR data products onto the 456 x 257 canvas.
+## Display model
 
-The display does not use WMS map images, ArcGIS export images, satellite JPEG wrappers, CARTO map tiles, RainViewer images or external radar screens.
+The screen is one radar-first instrument with four automatic scales:
 
-## Current ingested data
+- HOME, immediate neighborhood and home rain state
+- BROWARD / MIAMI, South Florida metro
+- FLORIDA, peninsula scale
+- GULF / CUBA, Gulf, Florida, Cuba, Bahamas and Yucatan context
 
-- MRMS quality-controlled base reflectivity for HOME and BROWARD / MIAMI.
-- MRMS composite reflectivity for FLORIDA and GULF / CUBA.
-- NWS warning polygons.
-- NWS state and county reference vectors.
-- NHC tropical outlook, track, cone, wind-field and watch/warning vectors.
-- NWS hourly forecast data.
+Radar history backfills after the newest frame is visible, then loops automatically. The current home classification, nearest rain, derived storm motion and a conservative radar-based ETA are calculated from the numeric MRMS fields. Live severe-weather context can include MRMS 30-minute lightning probability and MESH hail estimates. NWS warning polygons, NWS reference boundaries, NHC tropical forecast vectors and the latest nearby NWS surface observation are fetched as vector or observation data and rendered by the page.
 
-The renderer computes and shows HOME rain classification, nearest rain and storm motion from the ingested MRMS data.
+## Freshness behavior
+
+The HUD exposes the actual MRMS observation timestamp and classifies the feed as live, delayed or stale. There is no stale-radar fallback. If the live MRMS source cannot be acquired, the screen explicitly reports that the live feed is unavailable.
+
+## Test views
+
+Append one of these query parameters to hold a scale for verification:
+
+- `?view=home`
+- `?view=metro`
+- `?view=florida`
+- `?view=regional`
+
+The deployed GitHub Pages URL is `https://dmo18.github.io/rdr/`.
