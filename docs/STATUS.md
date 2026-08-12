@@ -23,21 +23,35 @@
 | Hourly precipitation probability | api.weather.gov | JSON | promoted in v8 header |
 | Surface observations | NWS/MADIS | ArcGIS GeoJSON | retained as context, removed from visual clutter |
 
-## V8 changes
+## V8 implementation
 
-- Replaces floating-card broadcast-v7 presentation.
-- Adds a full-width structural header and decision footer.
-- Keeps the radar map as the dominant visual surface.
-- Adds next-hour precipitation probability when available.
-- Removes synthetic cloud rendering and station-model clutter from production presentation.
-- Removes map motion arrows and long nearest-rain connectors.
-- Limits warning rendering to TOR, SVR, and FFW.
-- Limits strong-cell callouts.
-- Fixes geography readiness before scale changes.
-- Fixes initial readiness so boot does not disappear on radar-only success.
-- Uses local-cluster motion before global-field fallback for HOME ETA.
-- Adds blank-geography automated release checks.
+- Replaced the floating-card broadcast-v7 presentation.
+- Added one full-width structural header and one decision footer.
+- Kept the radar map as the dominant visual surface.
+- Promoted next-hour precipitation probability when available.
+- Removed synthetic cloud rendering and station-model clutter from presentation.
+- Removed map motion arrows and long nearest-rain connectors.
+- Limited warning rendering to TOR, SVR and FFW.
+- Limited strong-cell callouts and made labels collision-aware.
+- Fixed geography readiness before scale changes.
+- Fixed initial readiness so boot cannot disappear on radar-only success.
+- Added background geography prefetch for upcoming scales.
+- Changed HOME motion/ETA to try a local precipitation cluster before global-field fallback.
+- Added a closing-speed and direction test before ETA is emitted.
+- Added blank-geography automated release checks.
+- Split the presentation into `enterprise-core.js`, `enterprise-map.js`, `enterprise-overlays.js` and `enterprise-ui.js`.
+- Removed the rejected `broadcast.js` renderer and legacy `render.js` presentation path from the v8 branch.
+
+## Isolated live QA result
+
+Branch: `qa/enterprise-v8`
+
+The first complete live Chromium pass succeeded at exact 456 x 257 on all four views, including current NOAA data, geography, surface context and a full four-frame severe-runtime test.
+
+Observed warm paint p95 was about 1.0 to 1.1 ms per single-frame view. The full four-frame runtime was about 2.2 ms p95 with lightning and MESH loaded. The automated visual gate also verified land pixels in every view so the blank-ocean regression cannot pass silently.
+
+Native and 4x HOME, SOUTH FLORIDA, FLORIDA, GULF + CARIBBEAN and full-runtime captures were manually inspected and accepted for the enterprise-v8 direction.
 
 ## Rollout state
 
-The current public build remains v7 until enterprise-v8 passes the isolated QA workflow and manual capture review. Promotion to `main` must be atomic with the production verifier update.
+V8 has passed the first isolated live QA and manual visual review. Code cleanup and production verifier hardening are in progress. Public `main` remains v7 until a final cleaned v8 branch run passes. Promotion must then be atomic, followed by the full public Pages verification and manual production screenshot review.
