@@ -19,11 +19,11 @@
 | State/county geography | NWS | ArcGIS GeoJSON | retained |
 | Severe warnings | NWS | ArcGIS GeoJSON | retained |
 | Tropical geometry | NHC/NWS | ArcGIS GeoJSON | retained |
-| Current weather | api.weather.gov | JSON | retained |
+| Current weather | api.weather.gov | JSON quantitative values | retained, unit handling corrected |
 | Hourly precipitation probability | api.weather.gov | JSON | promoted in v8 header |
 | Surface observations | NWS/MADIS | ArcGIS GeoJSON | retained as context, removed from visual clutter |
 
-## V8 implementation
+## Enterprise v8 implementation
 
 - Replaced the floating-card broadcast-v7 presentation.
 - Added one full-width structural header and one decision footer.
@@ -36,22 +36,45 @@
 - Fixed geography readiness before scale changes.
 - Fixed initial readiness so boot cannot disappear on radar-only success.
 - Added background geography prefetch for upcoming scales.
+- Separated critical radar/geography readiness from optional enrichment feeds.
+- Added bounded network request timeouts so a slow upstream subservice cannot freeze the display.
+- Parallelized NHC tropical layer requests instead of waiting for ten serial requests.
 - Changed HOME motion/ETA to try a local precipitation cluster before global-field fallback.
 - Added a closing-speed and direction test before ETA is emitted.
+- Corrected NWS observation wind conversion by honoring `unitCode`; the old code treated km/h values as m/s.
 - Added blank-geography automated release checks.
-- Split the presentation into `enterprise-core.js`, `enterprise-map.js`, `enterprise-overlays.js` and `enterprise-ui.js`.
-- Removed the rejected `broadcast.js` renderer and legacy `render.js` presentation path from the v8 branch.
+- Split presentation into `enterprise-core.js`, `enterprise-map.js`, `enterprise-overlays.js` and `enterprise-ui.js`.
+- Removed the rejected `broadcast.js` renderer and legacy `render.js` presentation path.
 
-## Isolated live QA result
+## Final isolated QA acceptance
 
 Branch: `qa/enterprise-v8`
 
-The first complete live Chromium pass succeeded at exact 456 x 257 on all four views, including current NOAA data, geography, surface context and a full four-frame severe-runtime test.
+Final full live Chromium QA passed at exact 456 x 257 on all four views and the full production-style runtime.
 
-Observed warm paint p95 was about 1.0 to 1.1 ms per single-frame view. The full four-frame runtime was about 2.2 ms p95 with lightning and MESH loaded. The automated visual gate also verified land pixels in every view so the blank-ocean regression cannot pass silently.
+Latest accepted single-view measurements:
 
-Native and 4x HOME, SOUTH FLORIDA, FLORIDA, GULF + CARIBBEAN and full-runtime captures were manually inspected and accepted for the enterprise-v8 direction.
+- NEIGHBORHOOD: startup preparation 96.7 ms, visible startup paint max 19.8 ms, warm p95 0.8 ms.
+- SOUTH FLORIDA: startup preparation 96.1 ms, visible startup paint max 20.7 ms, warm p95 0.8 ms.
+- FLORIDA: startup preparation 102.8 ms, visible startup paint max 40.9 ms, warm p95 0.9 ms.
+- GULF + CARIBBEAN: startup preparation 106.8 ms, visible startup paint max 41.6 ms, warm p95 1.0 ms.
+
+Latest accepted full runtime:
+
+- 4 decoded radar frames
+- MRMS lightning probability loaded
+- MRMS MESH loaded
+- startup preparation 118.3 ms
+- visible startup paint max 43.4 ms
+- warm paint p95 4.3 ms
+- warm paint max 10.6 ms
+- no browser errors
+- no runtime/decoder errors
+
+The live current-weather conversion test reported 9 mph at KFLL after the unit fix, instead of the erroneous 41 mph produced by the old conversion.
+
+Automated visual QA verified state geography in every view, exact geometry, sufficient map occupancy/color, stable structural header/footer bands and nonblank land. HOME, SOUTH FLORIDA, FLORIDA, GULF + CARIBBEAN and full-runtime captures were manually inspected at native size and 4x enlargement after the cleaned build.
 
 ## Rollout state
 
-V8 has passed the first isolated live QA and manual visual review. Code cleanup and production verifier hardening are in progress. Public `main` remains v7 until a final cleaned v8 branch run passes. Promotion must then be atomic, followed by the full public Pages verification and manual production screenshot review.
+Enterprise v8 has completed isolated design, implementation, correctness, live-data, performance and visual QA. The next action is atomic promotion of the exact tested branch head to `main`, followed by the same local and public GitHub Pages verification and a final manual review of the public captures before delivery is reported.
