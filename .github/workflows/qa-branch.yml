@@ -1,0 +1,128 @@
+name: QA broadcast candidate
+
+on:
+  push:
+    branches: ['qa/broadcast-v7']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Static candidate checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'data-version="2026.08.12.7-qa"' index.html
+          grep -q 'const B_CAM=' broadcast.js
+          grep -q 'function bRadarCanvas' broadcast.js
+          grep -q 'function bPerf' broadcast.js
+          ! grep -q 'broadcastCloudCanvas' broadcast.js
+          ! grep -q 'Math.ceil(CFG.width/2)' broadcast.js
+          node --check broadcast.js
+          node --check core.js
+          node --check radar.js
+          node --check context.js
+          node --check render.js
+          node --check app.js
+
+      - name: Install QA dependencies
+        shell: bash
+        run: |
+          npm install --no-save --package-lock=false puppeteer-core >/dev/null
+          python3 -m pip install --disable-pip-version-check pillow >/dev/null
+
+      - name: Serve candidate locally
+        shell: bash
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/rdr-qa-http.log 2>&1 &
+          echo $! >/tmp/rdr-qa-http.pid
+          sleep 1
+
+      - name: Render four exact live views and measure paint time
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          mkdir -p /tmp/rdr-qa/views
+          cat > .qa-live.mjs <<'JS'
+          import puppeteer from 'puppeteer-core';
+          import fs from 'node:fs';
+          const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
+          const all={};
+          try{
+            for(const id of ['home','metro','florida','regional']){
+              const page=await browser.newPage();
+              await page.setViewport({width:456,height:257,deviceScaleFactor:1});
+              const errors=[]; page.on('pageerror',e=>errors.push(e.message)); page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+              const t0=Date.now();
+              await page.goto(`http://127.0.0.1:8765/?view=${id}&verify=1&qa=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
+              await page.waitForFunction(id=>{const s=window.__RDR__,p=document.querySelector('#panel');return s?.frames?.length>=1&&(s.surface?.get(id)?.length||0)>=1&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'},{timeout:150000,polling:250},id);
+              await new Promise(r=>setTimeout(r,1800));
+              const diag=await page.evaluate(id=>{
+                const s=window.__RDR__,p=document.querySelector('#panel'),a=(s.perf?.samples||[]).slice(-90).sort((x,y)=>x-y),avg=a.length?a.reduce((x,y)=>x+y,0)/a.length:null,p95=a.length?a[Math.floor(a.length*.95)]:null,max=a.length?a.at(-1):null;
+                return {id,frames:s.frames.length,surface:s.surface.get(id)?.length||0,errors:s.errors,paint:{avg,p95,max,count:a.length},dataset:{...p.dataset},viewport:[innerWidth,innerHeight],panel:[p.getBoundingClientRect().width,p.getBoundingClientRect().height]};
+              },id);
+              diag.readyMs=Date.now()-t0;diag.browserErrors=errors;all[id]=diag;
+              if(diag.viewport[0]!==456||diag.viewport[1]!==257||diag.panel[0]!==456||diag.panel[1]!==257)throw new Error(`geometry ${id}: ${JSON.stringify(diag)}`);
+              if(errors.length)throw new Error(`browser ${id}: ${JSON.stringify(diag)}`);
+              if(diag.paint.p95!=null&&diag.paint.p95>20)throw new Error(`paint p95 ${id}: ${JSON.stringify(diag.paint)}`);
+              const panel=await page.$('#panel');await panel.screenshot({path:`/tmp/rdr-qa/views/${id}.png`});await page.close();
+            }
+          } finally {await browser.close()}
+          fs.writeFileSync('/tmp/rdr-qa/views/metrics.json',JSON.stringify(all,null,2));
+          JS
+          node .qa-live.mjs
+
+      - name: Exercise full candidate runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          cat > .qa-full.mjs <<'JS'
+          import puppeteer from 'puppeteer-core';
+          import fs from 'node:fs';
+          const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
+          try{
+            const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+            const t0=Date.now();await page.goto(`http://127.0.0.1:8765/?view=florida&fullqa=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
+            await page.waitForFunction(()=>window.__RDR__?.frames?.length>=4&&window.__RDR__?.severe?.lightning&&window.__RDR__?.severe?.mesh&&document.querySelector('#panel')?.dataset?.radar==='live',{timeout:240000,polling:500});
+            await new Promise(r=>setTimeout(r,2200));
+            const diag=await page.evaluate(()=>{const s=window.__RDR__,a=(s.perf?.samples||[]).slice(-120).sort((x,y)=>x-y);return{frames:s.frames.length,severe:{lightning:!!s.severe.lightning,mesh:!!s.severe.mesh},paint:{avg:a.reduce((x,y)=>x+y,0)/Math.max(1,a.length),p95:a[Math.floor(a.length*.95)]||null,max:a.at(-1)||null,count:a.length},errors:s.errors}});diag.readyMs=Date.now()-t0;diag.browserErrors=errors;
+            if(errors.length)throw new Error(JSON.stringify(diag));if(diag.paint.p95!=null&&diag.paint.p95>20)throw new Error(`full paint p95: ${JSON.stringify(diag)}`);
+            await (await page.$('#panel')).screenshot({path:'/tmp/rdr-qa/views/full-runtime.png'});fs.writeFileSync('/tmp/rdr-qa/views/full-runtime.json',JSON.stringify(diag,null,2));
+          } finally {await browser.close()}
+          JS
+          node .qa-full.mjs
+
+      - name: Native visual sanity checks
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          for p in Path('/tmp/rdr-qa/views').glob('*.png'):
+              im=Image.open(p).convert('RGB')
+              assert im.size==(456,257), (p,im.size)
+              px=list(im.getdata())
+              assert len(set(px))>350, (p,'too few colors')
+              assert sum(1 for r,g,b in px if r+g+b>40)>30000, (p,'too empty')
+              # Reject accidental near-black full-width header/footer bands.
+              for y0,y1 in ((0,28),(235,257)):
+                  band=[px[y*456+x] for y in range(y0,y1) for x in range(456)]
+                  dark=sum(1 for r,g,b in band if r+g+b<35)/len(band)
+                  assert dark<0.92, (p,'opaque band regression',y0,dark)
+          PY
+
+      - name: Upload candidate QA
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdr-broadcast-v7-qa
+          path: /tmp/rdr-qa/views
+          retention-days: 7
