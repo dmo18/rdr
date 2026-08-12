@@ -1,0 +1,45 @@
+name: Probe live NOAA WCS radar coverage
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-wcs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Probe WCS capabilities
+        shell: bash
+        run: |
+          set -u
+          for u in \
+            'https://opengeo.ncep.noaa.gov/geoserver/ows?service=WCS&version=1.0.0&request=GetCapabilities' \
+            'https://opengeo.ncep.noaa.gov/geoserver/conus/ows?service=WCS&version=1.0.0&request=GetCapabilities' \
+            'https://opengeo.ncep.noaa.gov/geoserver/conus/wcs?service=WCS&version=1.0.0&request=GetCapabilities'; do
+            echo "=== $u"
+            curl -sS -D /tmp/h -o /tmp/b --max-time 30 "$u" || true
+            head -20 /tmp/h || true
+            echo "bytes=$(wc -c < /tmp/b)"
+            grep -o -m5 -E 'conus_bref_qcd|conus_c[br]ef_qcd|Exception|ServiceException' /tmp/b || true
+          done
+
+      - name: Probe WCS GetCoverage candidates
+        shell: bash
+        run: |
+          set -u
+          base='https://opengeo.ncep.noaa.gov/geoserver/conus/wcs'
+          for coverage in conus_bref_qcd conus:conus_bref_qcd; do
+            u="$base?service=WCS&version=1.0.0&request=GetCoverage&coverage=$coverage&CRS=EPSG:4326&RESPONSE_CRS=EPSG:4326&BBOX=-80.48,25.82,-79.92,26.31&WIDTH=456&HEIGHT=216&FORMAT=GeoTIFF"
+            echo "=== $coverage"
+            curl -sS -D "/tmp/h-${coverage//:/_}" -o "/tmp/c-${coverage//:/_}" --max-time 45 "$u" || true
+            head -20 "/tmp/h-${coverage//:/_}" || true
+            file "/tmp/c-${coverage//:/_}" || true
+            head -c 300 "/tmp/c-${coverage//:/_}" | strings | head || true
+          done
