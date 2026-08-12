@@ -15,16 +15,28 @@ async function loadBoundaries(def=view()){
   const [states,counties]=await Promise.all(jobs),value={states,counties};state.boundaries.set(def.id,value);render();return value;
 }
 
-function surfaceLayer(def){return def.id==='home'?160:def.id==='metro'?150:def.id==='florida'?130:120}
+function surfaceLayers(def){
+  if(def.id==='home')return[160,150,140];
+  if(def.id==='metro')return[150,160,140,130];
+  if(def.id==='florida')return[130,140,120,150,160];
+  return[120,110,130,140,150];
+}
 function featureTime(f){const t=f?.properties?.timeobs;if(t==null)return null;const d=new Date(t);return Number.isFinite(d.getTime())?d:null}
 async function loadSurfaceObs(def=view()){
-  try{
-    const fields='stationname,timeobs,cloudcover,cloudbase,winddir,windspeed,windgust,temperature,dewpoint,visibility';
-    const features=await arcQuery(CFG.surfaceObs,surfaceLayer(def),def.bbox,fields),cut=Date.now()-2*60*60*1000;
-    const current=features.filter(f=>{const d=featureTime(f);return !d||d.getTime()>=cut});
-    state.surface.set(def.id,current);panel.dataset.surface=current.length?'live':'empty';
-  }catch(e){state.errors.push(`surface: ${e}`);panel.dataset.surface='unavailable'}
-  render();
+  const fields='stationname,timeobs,cloudcover,cloudbase,winddir,windspeed,windgust,temperature,dewpoint,visibility';
+  let features=null,lastError=null,usedLayer=null;
+  for(const layer of surfaceLayers(def)){
+    for(let attempt=0;attempt<2;attempt++){
+      try{
+        const got=await arcQuery(CFG.surfaceObs,layer,def.bbox,fields);
+        if(got.length){features=got;usedLayer=layer;break}
+      }catch(e){lastError=e;if(attempt===0)await new Promise(r=>setTimeout(r,180))}
+    }
+    if(features?.length)break;
+  }
+  if(!features){state.errors.push(`surface: ${lastError||'no current observations'}`);panel.dataset.surface='unavailable';render();return}
+  const cut=Date.now()-2*60*60*1000,current=features.filter(f=>{const d=featureTime(f);return !d||d.getTime()>=cut});
+  state.surface.set(def.id,current.length?current:features);panel.dataset.surface=(current.length||features.length)?'live':'empty';panel.dataset.surfaceLayer=String(usedLayer);render();
 }
 
 async function loadWarnings(){
