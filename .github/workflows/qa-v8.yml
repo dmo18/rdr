@@ -31,6 +31,7 @@ jobs:
           grep -q 'function eWarmCurrentView' enterprise-ui.js
           grep -q 'function localCentroid' radar.js
           grep -q 'await Promise.allSettled' app.js
+          grep -q 'qvSpeedMph' context.js
           test ! -e broadcast.js
           test ! -e render.js
           ! grep -R -q 'broadcastCloudCanvas\|bGlass\|eMotion' enterprise-*.js
@@ -49,7 +50,7 @@ jobs:
           python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/rdr-v8-http.log 2>&1 &
           sleep 1
 
-      - name: Render exact live views and measure startup plus warm paint
+      - name: Render exact live views and measure preparation plus warm paint
         shell: bash
         run: |
           set -euo pipefail
@@ -67,16 +68,18 @@ jobs:
               const browserErrors=[];page.on('pageerror',e=>browserErrors.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push('console: '+m.text())});
               const t0=Date.now();await page.goto(`http://127.0.0.1:8765/?view=${id}&verify=1&qa=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
               await page.waitForFunction(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get(id);return p?.dataset?.version==='2026.08.12.8'&&p?.dataset?.layout==='enterprise-v8'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(s.surface?.get(id)?.length||0)>=1&&(b?.states?.length||0)>=1},{timeout:180000,polling:250},id);
-              const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);const coldPrepMs=await page.evaluate(()=>eWarmCurrentView());await page.evaluate(()=>{window.__RDR__.perf.samples=[]});await new Promise(r=>setTimeout(r,2600));
-              const diag=await page.evaluate(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s.boundaries.get(id),latest=s.frames.at(-1)?.time;return{id,dataset:{...p.dataset},frames:s.frames.length,surface:s.surface.get(id)?.length||0,boundaries:{states:b?.states?.length||0,counties:b?.counties?.length||0},latestAgeMs:latest?Date.now()-new Date(latest).getTime():null,home:s.home,weather:s.weather,errors:s.errors,samples:[...(s.perf?.samples||[])],viewport:[innerWidth,innerHeight],panel:[p.getBoundingClientRect().width,p.getBoundingClientRect().height]};},id);
-              diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.coldPrepMs=coldPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=browserErrors;all[id]=diag;
+              const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);const incrementalPrepMs=await page.evaluate(()=>eWarmCurrentView());await page.evaluate(()=>{window.__RDR__.perf.samples=[]});await new Promise(r=>setTimeout(r,2600));
+              const diag=await page.evaluate(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s.boundaries.get(id),latest=s.frames.at(-1)?.time;return{id,dataset:{...p.dataset},frames:s.frames.length,surface:s.surface.get(id)?.length||0,boundaries:{states:b?.states?.length||0,counties:b?.counties?.length||0},latestAgeMs:latest?Date.now()-new Date(latest).getTime():null,startupPrepMs:s.startupPrepMs,home:s.home,weather:s.weather,errors:s.errors,samples:[...(s.perf?.samples||[])],viewport:[innerWidth,innerHeight],panel:[p.getBoundingClientRect().width,p.getBoundingClientRect().height]};},id);
+              diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.incrementalPrepMs=incrementalPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=browserErrors;all[id]=diag;
               await (await page.$('#panel')).screenshot({path:`/tmp/rdr-v8/views/${id}.png`});fs.writeFileSync('/tmp/rdr-v8/views/metrics.json',JSON.stringify(all,null,2));
               if(browserErrors.length)throw new Error(`browser ${id}: ${JSON.stringify(diag)}`);
               if(!(diag.latestAgeMs>=0&&diag.latestAgeMs<15*60*1000))throw new Error(`stale ${id}: ${JSON.stringify(diag)}`);
               if(diag.viewport[0]!==456||diag.viewport[1]!==257||diag.panel[0]!==456||diag.panel[1]!==257)throw new Error(`geometry ${id}: ${JSON.stringify(diag)}`);
-              if(diag.startupPaint.max!=null&&diag.startupPaint.max>250)throw new Error(`startup ${id}: ${JSON.stringify(diag.startupPaint)}`);
-              if(diag.coldPrepMs>350)throw new Error(`cold prep ${id}: ${JSON.stringify(diag)}`);
+              if(diag.startupPaint.max!=null&&diag.startupPaint.max>250)throw new Error(`startup paint ${id}: ${JSON.stringify(diag.startupPaint)}`);
+              if(diag.startupPrepMs!=null&&diag.startupPrepMs>350)throw new Error(`startup prep ${id}: ${JSON.stringify(diag)}`);
+              if(diag.incrementalPrepMs>80)throw new Error(`incremental prep ${id}: ${JSON.stringify(diag)}`);
               if(diag.paint.p95!=null&&diag.paint.p95>16)throw new Error(`warm p95 ${id}: ${JSON.stringify(diag.paint)}`);
+              if(diag.weather?.windMph!=null&&diag.weather.windMph>80)throw new Error(`implausible observation wind ${id}: ${JSON.stringify(diag.weather)}`);
               await page.close();
             }
           } finally { await browser.close(); }
@@ -97,10 +100,10 @@ jobs:
             const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const browserErrors=[];page.on('pageerror',e=>browserErrors.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push('console: '+m.text())});
             const t0=Date.now();await page.goto(`http://127.0.0.1:8765/?view=florida&fullqa=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
             await page.waitForFunction(()=>{const s=window.__RDR__,b=s?.boundaries?.get('florida'),p=document.querySelector('#panel');return p?.dataset?.version==='2026.08.12.8'&&p?.dataset?.layout==='enterprise-v8'&&p?.dataset?.radar==='live'&&s?.frames?.length>=4&&s?.severe?.lightning&&s?.severe?.mesh&&(b?.states?.length||0)>=1},{timeout:240000,polling:500});
-            const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);const coldPrepMs=await page.evaluate(()=>eWarmCurrentView());await page.evaluate(()=>{window.__RDR__.perf.samples=[]});await new Promise(r=>setTimeout(r,3000));
-            const diag=await page.evaluate(()=>{const s=window.__RDR__;return{frames:s.frames.length,severe:{lightning:!!s.severe.lightning,mesh:!!s.severe.mesh},errors:s.errors,samples:[...(s.perf?.samples||[])],panel:{...document.querySelector('#panel').dataset}}});diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.coldPrepMs=coldPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=browserErrors;
+            const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);const incrementalPrepMs=await page.evaluate(()=>eWarmCurrentView());await page.evaluate(()=>{window.__RDR__.perf.samples=[]});await new Promise(r=>setTimeout(r,3000));
+            const diag=await page.evaluate(()=>{const s=window.__RDR__;return{frames:s.frames.length,startupPrepMs:s.startupPrepMs,severe:{lightning:!!s.severe.lightning,mesh:!!s.severe.mesh},weather:s.weather,errors:s.errors,samples:[...(s.perf?.samples||[])],panel:{...document.querySelector('#panel').dataset}}});diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.incrementalPrepMs=incrementalPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=browserErrors;
             await (await page.$('#panel')).screenshot({path:'/tmp/rdr-v8/views/full-runtime.png'});fs.writeFileSync('/tmp/rdr-v8/views/full-runtime.json',JSON.stringify(diag,null,2));
-            if(browserErrors.length)throw new Error(JSON.stringify(diag));if(diag.errors.some(e=>/ReferenceError|SyntaxError|invalid GRIB|unsupported PNG|unsupported GRIB/i.test(e)))throw new Error(`runtime decoder: ${JSON.stringify(diag)}`);if(diag.startupPaint.max!=null&&diag.startupPaint.max>300)throw new Error(`startup: ${JSON.stringify(diag)}`);if(diag.coldPrepMs>450)throw new Error(`cold prep: ${JSON.stringify(diag)}`);if(diag.paint.p95!=null&&diag.paint.p95>16)throw new Error(`warm p95: ${JSON.stringify(diag)}`);
+            if(browserErrors.length)throw new Error(JSON.stringify(diag));if(diag.errors.some(e=>/ReferenceError|SyntaxError|invalid GRIB|unsupported PNG|unsupported GRIB/i.test(e)))throw new Error(`runtime decoder: ${JSON.stringify(diag)}`);if(diag.startupPaint.max!=null&&diag.startupPaint.max>300)throw new Error(`startup paint: ${JSON.stringify(diag)}`);if(diag.startupPrepMs!=null&&diag.startupPrepMs>350)throw new Error(`startup prep: ${JSON.stringify(diag)}`);if(diag.incrementalPrepMs>450)throw new Error(`incremental prep: ${JSON.stringify(diag)}`);if(diag.paint.p95!=null&&diag.paint.p95>16)throw new Error(`warm p95: ${JSON.stringify(diag)}`);
           } finally { await browser.close(); }
           JS
           node .qa-v8-full.mjs
