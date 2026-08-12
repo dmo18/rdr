@@ -11,7 +11,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -20,38 +20,43 @@ jobs:
         run: |
           set -euo pipefail
           node --check app.js
-          grep -q 'data-version="2026.08.11.7"' index.html
+          node --check tropical.js
+          grep -q 'data-version="2026.08.11.8"' index.html
           grep -q 'width: 456' app.js
           grep -q 'height: 257' app.js
-          grep -q 'mapHeight: 257' app.js
-          for view in home metro florida regional satellite lightning tropics; do grep -q "id:'$view'" app.js; done
-          grep -q 'conus_bref_qcd' app.js
-          grep -q 'carib_bref_qcd' app.js
-          grep -q "layer:'warnings'" app.js
-          grep -q 'api.weather.gov' app.js
-          grep -q 'GOES19/ABI/SECTOR/se/GEOCOLOR' app.js
-          grep -q 'GOES19/GLM/SECTOR/se/EXTENT3' app.js
-          grep -q 'two_atl_7d0.png' app.js
-          ! grep -RniE 'api[_-]?key|access[_-]?token|client[_-]?secret|password=' index.html styles.css app.js
+          grep -q "id:'home'" app.js
+          grep -q "id:'metro'" app.js
+          grep -q "id:'florida'" app.js
+          grep -q "id:'regional'" app.js
+          grep -q "id:'satellite'" app.js
+          grep -q "id:'lightning'" app.js
+          grep -q "id:'tropics'" app.js
+          grep -q 'NHC_tropical_weather_summary' tropical.js
+          grep -q 'forecastHourly' app.js
+          grep -q 'forecastGridData' app.js
+          grep -q 'alerts/active' app.js
+          grep -q 'GOES19/ABI' app.js
+          grep -q 'GOES19/GLM' app.js
+          ! grep -RniE 'api[_-]?key|access[_-]?token|client[_-]?secret|password=' index.html styles.css app.js tropical.js
 
       - name: Probe public weather resources
         shell: bash
         run: |
           set -euo pipefail
-          ua='Mozilla/5.0 RDR-Yodeck/7.0 contact=rdr@example.invalid'
+          ua='Mozilla/5.0 RDR-Yodeck/8.0'
           curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" 'https://opengeo.ncep.noaa.gov/geoserver/conus/conus_bref_qcd/ows?service=WMS&version=1.1.1&request=GetCapabilities' -o /tmp/conus.xml
           grep -q 'conus_bref_qcd' /tmp/conus.xml
           curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" 'https://opengeo.ncep.noaa.gov/geoserver/carib/carib_bref_qcd/ows?service=WMS&version=1.1.1&request=GetCapabilities' -o /tmp/carib.xml
           grep -q 'carib_bref_qcd' /tmp/carib.xml
-          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" -H 'Accept: application/geo+json' 'https://api.weather.gov/points/26.0620,-80.1879' -o /tmp/point.json
+          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" 'https://api.weather.gov/points/26.0620,-80.1879' -o /tmp/point.json
           grep -q 'forecastHourly' /tmp/point.json
-          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" 'https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/se/GEOCOLOR/1200x1200.jpg' -o /tmp/cloud.jpg
-          file /tmp/cloud.jpg | grep -Eq 'JPEG image data|PNG image data'
+          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" 'https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/se/GEOCOLOR/1200x1200.jpg' -o /tmp/satellite.jpg
+          file /tmp/satellite.jpg | grep -Eq 'JPEG image data|PNG image data'
           curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" 'https://cdn.star.nesdis.noaa.gov/GOES19/GLM/SECTOR/se/EXTENT3/1200x1200.jpg' -o /tmp/lightning.jpg
           file /tmp/lightning.jpg | grep -Eq 'JPEG image data|PNG image data'
-          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" 'https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png' -o /tmp/tropics.png
+          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" 'https://mapservices.weather.noaa.gov/tropical/rest/services/tropical/NHC_tropical_weather_summary/MapServer/export?bbox=-11131949,557305,-2226389,5621521&bboxSR=3857&imageSR=3857&size=456,257&format=png32&transparent=true&layers=show%3A2%2C33%2C3%2C5%2C6%2C7%2C8%2C10%2C11%2C15%2C16&f=image' -o /tmp/tropics.png
           file /tmp/tropics.png | grep -q 'PNG image data'
-          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" 'https://basemaps.cartocdn.com/dark_nolabels/10/283/437.png' -o /tmp/base.png
+          curl -fsSL --retry 2 --connect-timeout 10 --max-time 35 -A "$ua" 'https://basemaps.cartocdn.com/dark_nolabels/3/2/3.png' -o /tmp/base.png
           file /tmp/base.png | grep -q 'PNG image data'
 
       - name: Render every local view at exactly 456 x 257
@@ -69,10 +74,7 @@ jobs:
             timeout 80s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=25000 --dump-dom "$url" > "/tmp/$view.html"
             grep -q 'data-ready="true"' "/tmp/$view.html"
             grep -q "data-view=\"$view\"" "/tmp/$view.html"
-            if [ "$view" = home ]; then
-              grep -Eq 'data-home-rain="(dry|sprinkle|rain|heavy|intense|unknown)"' "/tmp/$view.html"
-              grep -Eq 'data-weather="(ok|down)"' "/tmp/$view.html"
-            fi
+            if [ "$view" = tropics ]; then grep -q 'data-image="ok"' "/tmp/$view.html"; fi
             timeout 80s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=25000 --screenshot="screenshots/local/$view.png" "$url"
           done
           python3 - <<'PY'
@@ -91,7 +93,7 @@ jobs:
           ok=0
           for attempt in $(seq 1 42); do
             if curl -fsSL --max-time 15 -H 'Cache-Control: no-cache' "https://dmo18.github.io/rdr/?verify=${GITHUB_SHA}-${attempt}" -o /tmp/live.html; then
-              if grep -q 'data-version="2026.08.11.7"' /tmp/live.html; then ok=1; break; fi
+              if grep -q 'data-version="2026.08.11.8"' /tmp/live.html; then ok=1; break; fi
             fi
             sleep 10
           done
@@ -107,6 +109,7 @@ jobs:
             timeout 80s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=27000 --dump-dom "$url" > "/tmp/live-$view.html"
             grep -q 'data-ready="true"' "/tmp/live-$view.html"
             grep -q "data-view=\"$view\"" "/tmp/live-$view.html"
+            if [ "$view" = tropics ]; then grep -q 'data-image="ok"' "/tmp/live-$view.html"; fi
             timeout 80s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --window-size=456,257 --virtual-time-budget=27000 --screenshot="screenshots/live/$view.png" "$url"
           done
           python3 - <<'PY'

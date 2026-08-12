@@ -14,7 +14,7 @@ RDR is one automatic weather HUD. It uses the full canvas and rotates through we
 4. **GULF / CUBA**: regional radar across the Gulf, Florida, Cuba, the Keys, and the Bahamas.
 5. **SATELLITE**: live GOES East Southeast geocolor imagery for clouds.
 6. **LIGHTNING**: live GOES East GLM flash-extent-density imagery.
-7. **TROPICS**: the National Hurricane Center Atlantic seven-day tropical outlook.
+7. **TROPICS**: NHC seven-day development outlook plus active tropical cyclone forecast tracks, cones, watches, warnings, and wind fields on an Atlantic basemap.
 
 Views rotate automatically in about one minute. `?view=home`, `?view=metro`, `?view=florida`, `?view=regional`, `?view=satellite`, `?view=lightning`, and `?view=tropics` force a view for testing. `?demo=1` supplies deterministic local data for layout testing when public data services are unavailable.
 
@@ -36,7 +36,7 @@ No paid service, account, API key, token, or registration is required.
 - NOAA/NWS OpenGeo WMS quality-controlled radar and warning services.
 - NWS API hourly forecast, grid data, and point alerts.
 - NOAA/NESDIS GOES East imagery for cloud and lightning views.
-- NOAA/NHC Atlantic seven-day graphical tropical weather outlook.
+- NOAA/NWS/NHC tropical ArcGIS service for seven-day development outlooks, active tracks, cones, watches, warnings, and wind fields.
 - CARTO dark no-label basemap tiles with OpenStreetMap geographic data.
 
 ## Deployment
