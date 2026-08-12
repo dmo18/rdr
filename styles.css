@@ -1,15 +1,11 @@
-:root{--w:456px;--h:257px}
+:root{color-scheme:dark;background:#04131b;font-family:Arial,Helvetica,sans-serif}
 *{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#010508;color:#edf7fa;font-family:Arial,Helvetica,sans-serif}
-body{display:grid;place-items:center}
-#shell{position:relative;width:100vw;height:100vh;overflow:hidden;background:#010508}
-#panel{position:absolute;left:50%;top:50%;width:var(--w);height:var(--h);transform-origin:center center;background:#061118;overflow:hidden;box-shadow:0 0 0 1px rgba(142,193,213,.28),0 0 0 2px rgba(0,0,0,.72),0 12px 42px rgba(0,0,0,.62)}
-#display{display:block;width:456px;height:257px;background:#061118}
-#boot{position:absolute;inset:0;z-index:5;display:grid;place-content:center;justify-items:center;gap:6px;text-align:center;background:linear-gradient(180deg,#102936 0,#061118 52%,#02080c 100%);transition:opacity .22s ease,visibility .22s ease}
-#boot::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:#1b90b7}
-#boot b{font:800 18px/1 Arial,Helvetica,sans-serif;letter-spacing:.06em;color:#eef8fb;text-shadow:0 1px 0 #000}
-#boot span{font:800 6px/1.2 Arial,Helvetica,sans-serif;letter-spacing:.16em;color:#8fb1bf}
-#boot.off{opacity:0;visibility:hidden;pointer-events:none}
-#panel[data-freshness="delayed"] #display{filter:saturate(.94)}
-#panel[data-freshness="stale"] #display{filter:saturate(.72) contrast(.94)}
-@media (prefers-reduced-motion:reduce){#boot{transition:none}}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#04131b}
+body{position:relative}
+#shell{position:fixed;inset:0;overflow:hidden;background:#04131b}
+#panel{position:absolute;left:50%;top:50%;width:456px;height:257px;transform-origin:center center;background:#04131b;overflow:hidden;contain:layout paint size;isolation:isolate}
+#display{display:block;width:456px;height:257px;background:#04131b}
+#boot{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;background:#04131b;color:#eaf6f9;letter-spacing:.06em;transition:opacity .16s ease;pointer-events:none}
+#boot b{font-size:14px;line-height:1;font-weight:900;color:#83e4ff}
+#boot span{font-size:6px;font-weight:800;color:#8aa3ad;letter-spacing:.12em}
+#boot.off{opacity:0;visibility:hidden}
