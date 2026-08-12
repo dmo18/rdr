@@ -19,12 +19,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'data-version="2026.08.11.12"' index.html
+          grep -q 'data-version="2026.08.11.13"' index.html
           grep -q 'data-engine="live-mrms"' index.html
           grep -q 'noaa-mrms-pds.s3.amazonaws.com' core.js
           grep -q 'MergedReflectivityQCComposite_00.50' core.js
           grep -q 'template!==41' radar.js
           grep -q 'function interpolated' radar.js
+          grep -q 'meta.bits===24' radar.js
           grep -q 'DecompressionStream' core.js
           ! grep -R 'data/home.png\|data/radar.json\|scripts/ingest.py' -- index.html app.js core.js radar.js context.js render.js README.md
           for f in app.js core.js radar.js context.js render.js; do node --check "$f"; done
@@ -110,7 +111,7 @@ jobs:
           set -euo pipefail
           for i in $(seq 1 40); do
             body=$(curl -fsSL "https://dmo18.github.io/rdr/?verify=${GITHUB_SHA}-${i}" || true)
-            if printf '%s' "$body" | grep -q 'data-version="2026.08.11.12"'; then exit 0; fi
+            if printf '%s' "$body" | grep -q 'data-version="2026.08.11.13"'; then exit 0; fi
             sleep 5
           done
           echo 'Pages did not publish the expected version' >&2
@@ -140,7 +141,7 @@ jobs:
             await page.waitForFunction(()=>window.__RDR__?.frames?.length>=3 && document.querySelector('#panel')?.dataset?.radar==='live',{timeout:240000,polling:500});
             const diag=await page.evaluate(()=>({frames:window.__RDR__.frames.length,severe:{lightning:!!window.__RDR__.severe.lightning,mesh:!!window.__RDR__.severe.mesh},errors:window.__RDR__.errors,radar:document.querySelector('#panel').dataset.radar,freshness:document.querySelector('#panel').dataset.freshness}));
             if(diag.radar!=='live'||diag.frames<3)throw new Error('full radar loop failed: '+JSON.stringify(diag));
-            if(!diag.severe.lightning&&!diag.severe.mesh)throw new Error('severe data stage loaded no MRMS field: '+JSON.stringify(diag));
+            if(!diag.severe.lightning||!diag.severe.mesh)throw new Error('severe data stage did not load both MRMS fields: '+JSON.stringify(diag));
             if(diag.errors.some(e=>/ReferenceError|TypeError|invalid GRIB|unsupported PNG|unsupported GRIB/i.test(e)))throw new Error('runtime decoder error: '+JSON.stringify(diag));
             const panel=await page.$('#panel');await panel.screenshot({path:'/tmp/renders/live/full-runtime.png'});
             fs.writeFileSync('/tmp/renders/live/full-runtime.json',JSON.stringify({...diag,browserErrors},null,2));
