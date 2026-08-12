@@ -1,4 +1,4 @@
-name: Probe live NOAA WCS radar coverage
+name: Probe live MRMS browser radar
 
 on:
   push:
@@ -13,40 +13,85 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - name: Fetch WCS coverage
-        shell: bash
-        run: |
-          set -euo pipefail
-          u='https://opengeo.ncep.noaa.gov/geoserver/conus/wcs?service=WCS&version=1.0.0&request=GetCoverage&coverage=conus_bref_qcd&CRS=EPSG:4326&RESPONSE_CRS=EPSG:4326&BBOX=-80.48,25.82,-79.92,26.31&WIDTH=456&HEIGHT=216&FORMAT=GeoTIFF'
-          curl -fsS -D /tmp/headers -o /tmp/radar.tif --max-time 45 "$u"
-          grep -i 'access-control-allow-origin' /tmp/headers
-          file /tmp/radar.tif
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
 
-      - name: Inspect TIFF samples
-        shell: bash
-        run: |
-          set -euo pipefail
-          pip install --disable-pip-version-check tifffile numpy >/dev/null
-          python - <<'PY'
-          import numpy as np
-          import tifffile
-          with tifffile.TiffFile('/tmp/radar.tif') as tf:
-              page=tf.pages[0]
-              arr=page.asarray()
-              print('shape',arr.shape,'dtype',arr.dtype,'samplesperpixel',page.samplesperpixel,'photometric',page.photometric)
-              print('minmax',np.nanmin(arr),np.nanmax(arr),'unique-first',np.unique(arr.reshape(-1,arr.shape[-1]) if arr.ndim==3 else arr)[:30])
-              print('description',page.description)
-              for key in ('GDAL_METADATA','GDAL_NODATA','ModelPixelScaleTag','ModelTiepointTag','GeoKeyDirectoryTag'):
-                  t=page.tags.get(key)
-                  if t: print(key,t.value)
-          PY
+      - name: Install GRIB parser test dependencies
+        run: npm install --no-save grib-js@1.0.0 browserify@17
 
-      - name: Inspect coverage metadata
+      - name: Decode newest MRMS GRIB2 numerically in Node
         shell: bash
         run: |
           set -euo pipefail
-          u='https://opengeo.ncep.noaa.gov/geoserver/conus/wcs?service=WCS&version=1.0.0&request=DescribeCoverage&coverage=conus_bref_qcd'
-          curl -fsS --max-time 30 "$u" -o /tmp/describe.xml
-          grep -Eo '<(name|label|description|nativeCRSs|requestResponseCRSs|formats|singleValue)[^>]*>[^<]*' /tmp/describe.xml | head -80 || true
+          cat > /tmp/decode.mjs <<'JS'
+          import zlib from 'node:zlib';
+          import {createRequire} from 'node:module';
+          const require=createRequire(import.meta.url);
+          const grib=require(process.cwd()+'/node_modules/grib-js');
+          const day=new Date().toISOString().slice(0,10).replaceAll('-','');
+          const prefix=`CONUS/MergedReflectivityQCComposite_00.50/${day}/`;
+          const list=`https://noaa-mrms-pds.s3.amazonaws.com/?list-type=2&prefix=${encodeURIComponent(prefix)}&max-keys=1000`;
+          const lr=await fetch(list); if(!lr.ok) throw new Error(`list ${lr.status}`);
+          console.log('LIST_CORS',lr.headers.get('access-control-allow-origin'));
+          const xml=await lr.text();
+          const keys=[...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map(m=>m[1]).filter(k=>k.endsWith('.grib2.gz')).sort();
+          if(!keys.length) throw new Error(`no keys for ${prefix}`);
+          const key=keys.at(-1),url=`https://noaa-mrms-pds.s3.amazonaws.com/${key}`;
+          const rr=await fetch(url); if(!rr.ok) throw new Error(`object ${rr.status}`);
+          console.log('OBJECT_CORS',rr.headers.get('access-control-allow-origin'),'KEY',key,'BYTES',rr.headers.get('content-length'));
+          const gz=Buffer.from(await rr.arrayBuffer()),raw=zlib.gunzipSync(gz);
+          console.log('GRIB_BYTES',raw.length,'MAGIC',raw.subarray(0,4).toString());
+          await new Promise((resolve,reject)=>grib.readData(new DataView(raw.buffer,raw.byteOffset,raw.byteLength),(err,msgs)=>{
+            if(err)return reject(err);
+            const f=msgs[0]?.fields?.[0];
+            const data=f?.data||[];
+            let lo=Infinity,hi=-Infinity,finite=0;
+            for(const x of data){if(Number.isFinite(x)){finite++; if(x<lo)lo=x;if(x>hi)hi=x}}
+            console.log('MESSAGES',msgs.length,'TEMPLATE',f?.representation?.templateNumber?.value,'GRID',f?.grid?.definition?.ni,f?.grid?.definition?.nj,'POINTS',data.length,'FINITE',finite,'MIN',lo,'MAX',hi,'REF',msgs[0]?.referenceTime?.toISOString?.());
+            if(!data.length||finite<1000||!(hi>lo)) return reject(new Error('numeric data not decoded'));
+            resolve();
+          }));
+          JS
+          node /tmp/decode.mjs
+
+      - name: Build browser parser bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/probe
+          cat > /tmp/probe-entry.js <<'JS'
+          window.GribJS=require('grib-js');
+          JS
+          npx browserify /tmp/probe-entry.js -o /tmp/probe/grib.bundle.js
+          cat > /tmp/probe/index.html <<'HTML'
+          <!doctype html><meta charset="utf-8"><body data-ready="false"><pre id="out">starting</pre><script src="grib.bundle.js"></script><script>
+          (async()=>{try{
+            const day=new Date().toISOString().slice(0,10).replaceAll('-','');
+            const prefix=`CONUS/MergedReflectivityQCComposite_00.50/${day}/`;
+            const lr=await fetch(`https://noaa-mrms-pds.s3.amazonaws.com/?list-type=2&prefix=${encodeURIComponent(prefix)}&max-keys=1000`,{cache:'no-store'});
+            if(!lr.ok)throw Error('list '+lr.status);
+            const xml=await lr.text(),keys=[...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map(m=>m[1]).filter(k=>k.endsWith('.grib2.gz')).sort();
+            if(!keys.length)throw Error('no keys');
+            const key=keys.at(-1),rr=await fetch('https://noaa-mrms-pds.s3.amazonaws.com/'+key,{cache:'no-store'});if(!rr.ok)throw Error('object '+rr.status);
+            const ds=new DecompressionStream('gzip'),raw=await new Response(new Blob([await rr.arrayBuffer()]).stream().pipeThrough(ds)).arrayBuffer();
+            GribJS.readData(new DataView(raw),(err,msgs)=>{if(err)throw err;const f=msgs[0]?.fields?.[0],data=f?.data||[];let lo=Infinity,hi=-Infinity,n=0;for(const x of data){if(Number.isFinite(x)){n++;lo=Math.min(lo,x);hi=Math.max(hi,x)}};document.body.dataset.ready='true';document.body.dataset.points=String(data.length);document.body.dataset.template=String(f?.representation?.templateNumber?.value);document.body.dataset.key=key;document.getElementById('out').textContent=`${key}\npoints=${data.length} finite=${n} min=${lo} max=${hi}`;});
+          }catch(e){document.body.dataset.error=String(e);document.getElementById('out').textContent=String(e)}})();
+          </script>
+          HTML
+
+      - name: Prove direct browser fetch and decode
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          cd /tmp/probe
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/http.log 2>&1 &
+          pid=$!; trap 'kill $pid || true' EXIT; sleep 1
+          timeout 120s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --virtual-time-budget=90000 --dump-dom 'http://127.0.0.1:8765/' > /tmp/dom.html
+          cat /tmp/dom.html
+          grep -q 'data-ready="true"' /tmp/dom.html
+          grep -Eq 'data-points="[1-9][0-9]{4,}"' /tmp/dom.html
