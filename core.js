@@ -3,7 +3,7 @@
 const CFG={
   width:456,height:257,top:28,bottom:19,mapHeight:210,
   home:{lat:26.06197904865014,lon:-80.18787062578414},
-  pollMs:120000,vectorMs:300000,severeMs:180000,frameMs:760,
+  pollMs:120000,vectorMs:300000,severeMs:180000,radarFrameMs:980,radarBlendMs:360,animFps:15,
   views:[
     {id:'home',name:'HOME',duration:12000,bbox:[-80.46,25.84,-79.96,26.30],labels:[['DAVIE',26.0765,-80.2521],['HOLLYWOOD',26.0112,-80.1495],['DANIA',26.0523,-80.1439],['FORT LAUDERDALE',26.1224,-80.1373],['HALLANDALE',25.9812,-80.1484],['MIRAMAR',25.9861,-80.3036]]},
     {id:'metro',name:'BROWARD / MIAMI',duration:11000,bbox:[-81.10,25.00,-79.45,27.02],labels:[['WEST PALM',26.7153,-80.0534],['BOCA RATON',26.3683,-80.1289],['FORT LAUDERDALE',26.1224,-80.1373],['HOLLYWOOD',26.0112,-80.1495],['MIAMI',25.7617,-80.1918],['HOMESTEAD',25.4687,-80.4776],['KEY LARGO',25.0865,-80.4473]]},
@@ -16,6 +16,7 @@ const CFG={
   reference:'https://mapservices.weather.noaa.gov/static/rest/services/nws_reference_maps/nws_reference_map/MapServer',
   warnings:'https://mapservices.weather.noaa.gov/eventdriven/rest/services/WWA/watch_warn_adv/MapServer',
   tropics:'https://mapservices.weather.noaa.gov/tropical/rest/services/tropical/NHC_tropical_weather_summary/MapServer',
+  surfaceObs:'https://mapservices.weather.noaa.gov/vector/rest/services/obs/surface_obs/MapServer',
   nws:'https://api.weather.gov'
 };
 
@@ -29,16 +30,17 @@ const verifyMode=query.has('verify');
 
 const state={
   view:0,cursor:0,frames:[],radarLoading:false,lastListError:null,
-  boundaries:new Map(),warnings:new Map(),tropics:[],weather:null,
+  boundaries:new Map(),surface:new Map(),warnings:new Map(),tropics:[],weather:null,
   severe:{lightning:null,mesh:null},home:{dbz:null,status:'LOADING',nearest:null,eta:null},motion:null,
+  transition:null,windParticles:[],windView:null,windLast:0,raf:null,lastPaint:0,
   rotateTimer:null,animTimer:null,pollTimer:null,vectorTimer:null,severeTimer:null,errors:[]
 };
 
 const MISSING=-32768;
 const radarStops=[
-  [5,[18,111,143]],[10,[20,154,141]],[15,[23,190,102]],[20,[42,218,69]],[25,[121,229,55]],
-  [30,[216,229,49]],[35,[255,211,42]],[40,[255,160,35]],[45,[255,101,32]],[50,[242,52,47]],
-  [55,[218,42,104]],[60,[193,48,184]],[65,[163,61,225]],[70,[232,232,255]]
+  [5,[0,103,214]],[10,[0,167,255]],[15,[0,213,155]],[20,[0,231,76]],[25,[60,240,60]],
+  [30,[181,239,45]],[35,[250,226,43]],[40,[255,169,35]],[45,[255,96,34]],[50,[246,44,48]],
+  [55,[255,34,122]],[60,[221,39,216]],[65,[166,55,241]],[70,[248,248,255]]
 ];
 
 function fitPanel(){
@@ -92,3 +94,4 @@ function bearing(a,b){
 }
 function dir8(deg){return['N','NE','E','SE','S','SW','W','NW'][Math.round(((deg%360)+360)%360/45)%8]}
 function angleDiff(a,b){let d=Math.abs(a-b)%360;return d>180?360-d:d}
+function seeded(n){const x=Math.sin(n*12.9898+78.233)*43758.5453;return x-Math.floor(x)}
