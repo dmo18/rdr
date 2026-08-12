@@ -15,31 +15,38 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Probe WCS capabilities
+      - name: Fetch WCS coverage
         shell: bash
         run: |
-          set -u
-          for u in \
-            'https://opengeo.ncep.noaa.gov/geoserver/ows?service=WCS&version=1.0.0&request=GetCapabilities' \
-            'https://opengeo.ncep.noaa.gov/geoserver/conus/ows?service=WCS&version=1.0.0&request=GetCapabilities' \
-            'https://opengeo.ncep.noaa.gov/geoserver/conus/wcs?service=WCS&version=1.0.0&request=GetCapabilities'; do
-            echo "=== $u"
-            curl -sS -D /tmp/h -o /tmp/b --max-time 30 "$u" || true
-            head -20 /tmp/h || true
-            echo "bytes=$(wc -c < /tmp/b)"
-            grep -o -m5 -E 'conus_bref_qcd|conus_c[br]ef_qcd|Exception|ServiceException' /tmp/b || true
-          done
+          set -euo pipefail
+          u='https://opengeo.ncep.noaa.gov/geoserver/conus/wcs?service=WCS&version=1.0.0&request=GetCoverage&coverage=conus_bref_qcd&CRS=EPSG:4326&RESPONSE_CRS=EPSG:4326&BBOX=-80.48,25.82,-79.92,26.31&WIDTH=456&HEIGHT=216&FORMAT=GeoTIFF'
+          curl -fsS -D /tmp/headers -o /tmp/radar.tif --max-time 45 "$u"
+          grep -i 'access-control-allow-origin' /tmp/headers
+          file /tmp/radar.tif
 
-      - name: Probe WCS GetCoverage candidates
+      - name: Inspect TIFF samples
         shell: bash
         run: |
-          set -u
-          base='https://opengeo.ncep.noaa.gov/geoserver/conus/wcs'
-          for coverage in conus_bref_qcd conus:conus_bref_qcd; do
-            u="$base?service=WCS&version=1.0.0&request=GetCoverage&coverage=$coverage&CRS=EPSG:4326&RESPONSE_CRS=EPSG:4326&BBOX=-80.48,25.82,-79.92,26.31&WIDTH=456&HEIGHT=216&FORMAT=GeoTIFF"
-            echo "=== $coverage"
-            curl -sS -D "/tmp/h-${coverage//:/_}" -o "/tmp/c-${coverage//:/_}" --max-time 45 "$u" || true
-            head -20 "/tmp/h-${coverage//:/_}" || true
-            file "/tmp/c-${coverage//:/_}" || true
-            head -c 300 "/tmp/c-${coverage//:/_}" | strings | head || true
-          done
+          set -euo pipefail
+          pip install --disable-pip-version-check tifffile numpy >/dev/null
+          python - <<'PY'
+          import numpy as np
+          import tifffile
+          with tifffile.TiffFile('/tmp/radar.tif') as tf:
+              page=tf.pages[0]
+              arr=page.asarray()
+              print('shape',arr.shape,'dtype',arr.dtype,'samplesperpixel',page.samplesperpixel,'photometric',page.photometric)
+              print('minmax',np.nanmin(arr),np.nanmax(arr),'unique-first',np.unique(arr.reshape(-1,arr.shape[-1]) if arr.ndim==3 else arr)[:30])
+              print('description',page.description)
+              for key in ('GDAL_METADATA','GDAL_NODATA','ModelPixelScaleTag','ModelTiepointTag','GeoKeyDirectoryTag'):
+                  t=page.tags.get(key)
+                  if t: print(key,t.value)
+          PY
+
+      - name: Inspect coverage metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          u='https://opengeo.ncep.noaa.gov/geoserver/conus/wcs?service=WCS&version=1.0.0&request=DescribeCoverage&coverage=conus_bref_qcd'
+          curl -fsS --max-time 30 "$u" -o /tmp/describe.xml
+          grep -Eo '<(name|label|description|nativeCRSs|requestResponseCRSs|formats|singleValue)[^>]*>[^<]*' /tmp/describe.xml | head -80 || true
