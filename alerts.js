@@ -27,6 +27,7 @@ function alertMeta(f){
   return{code,name,sig,priority,color,isWarning,isWatch,isAdvisory,width:isWarning?(priority>=88?2.2:1.55):isWatch?1.15:.8,dash:isWarning?[]:isWatch?[4,2]:[2,2],fill:isWarning?(priority>=88?'.050':'.032'):isWatch?'.016':'.008'};
 }
 function alertDisplayable(f){if(!f?.geometry||alertExpired(f))return false;const m=alertMeta(f),u=m.name.toUpperCase();return['W','A','Y'].includes(m.sig)||/WARNING|WATCH|ADVISORY|ALERT/.test(u)}
+function alertVisibleInView(f,def=view()){if(!alertDisplayable(f))return false;const m=alertMeta(f);if(m.isAdvisory&&['florida','regional'].includes(def.id)&&!containsPoint(f.geometry,CFG.home))return false;return true}
 function warningCode(f){return alertMeta(f).code}
 function alertPriority(f){return alertMeta(f).priority}
 function localAlert(){const a=[];for(const f of state.warnings.values())if(alertDisplayable(f)&&containsPoint(f.geometry,CFG.home))a.push(f);a.sort((x,y)=>alertPriority(y)-alertPriority(x));return a[0]||null}
@@ -44,7 +45,7 @@ async function loadWarnings(){
 }
 
 function eWarningsInView(){
-  const out=[];for(const f of state.warnings.values()){if(!alertDisplayable(f))continue;const box=eGeomBounds(f.geometry);if(!eBoxIntersects(box,view().bbox))continue;const c=geometryCenter(f.geometry)||{lon:(box.w+box.e)/2,lat:(box.s+box.n)/2},meta=alertMeta(f);out.push({f,c,code:meta.code,meta})}
+  const out=[];for(const f of state.warnings.values()){if(!alertVisibleInView(f,view()))continue;const box=eGeomBounds(f.geometry);if(!eBoxIntersects(box,view().bbox))continue;const c=geometryCenter(f.geometry)||{lon:(box.w+box.e)/2,lat:(box.s+box.n)/2},meta=alertMeta(f);out.push({f,c,code:meta.code,meta})}
   return out.sort((a,b)=>b.meta.priority-a.meta.priority||a.meta.name.localeCompare(b.meta.name));
 }
 function eHazardColor(code){return E_ALERT_COLORS[code]||E_ALERT_COLORS.ALERT}
@@ -57,7 +58,7 @@ function eWarningLabels(occ){
   state.alertUi={...(state.alertUi||{}),labels};
 }
 function eAlertSummarySpec(){
-  const alerts=eWarningsInView();if(!alerts.length)return null;const local=localAlert(),primary=local?alerts.find(x=>x.f===local)||alerts[0]:alerts[0],meta=primary.meta;return{x:306,y:E_MAP_TOP+5,w:144,h:27,alerts,primary,meta,local:primary.f===local};
+  const alerts=eWarningsInView();if(!alerts.length)return null;const local=localAlert(),urgent=alerts.find(x=>x.meta.priority>=70),localInView=local?alerts.find(x=>x.f===local):null,primary=urgent||localInView||alerts[0],meta=primary.meta;return{x:306,y:E_MAP_TOP+5,w:144,h:27,alerts,primary,meta,local:primary.f===local};
 }
 function eAlertSummaryBox(spec=eAlertSummarySpec()){
   if(!spec){state.alertUi={...(state.alertUi||{}),summary:false,count:0};return}const{x,y,w,h,alerts,meta,local}=spec,more=Math.max(0,alerts.length-1),title=local?`${meta.code}  HOME ALERT`:`${meta.code}  ACTIVE ALERT`,sub=`${meta.name.toUpperCase()}${more?`  +${more}`:''}`;
@@ -65,8 +66,18 @@ function eAlertSummaryBox(spec=eAlertSummarySpec()){
   state.alertUi={...(state.alertUi||{}),summary:true,count:alerts.length,primary:meta.code,local};
 }
 function eHazardText(){
-  const alerts=eWarningsInView(),local=localAlert(),ltg=eFieldMax(state.severe.lightning),mesh=eFieldMax(state.severe.mesh),tropical=view().id==='regional'&&state.tropics.length;if(alerts.length){const top=local?alerts.find(x=>x.f===local)||alerts[0]:alerts[0],same=alerts.filter(x=>x.meta.code===top.meta.code).length;return{main:`${top.meta.code}${same>1?` ${same}`:''}`,sub:`${local&&top.f===local?'HOME · ':''}${top.meta.name.toUpperCase()}`,accent:top.meta.color}}
+  const alerts=eWarningsInView(),local=localAlert(),ltg=eFieldMax(state.severe.lightning),mesh=eFieldMax(state.severe.mesh),tropical=view().id==='regional'&&state.tropics.length;if(alerts.length){const top=alerts[0],same=alerts.filter(x=>x.meta.code===top.meta.code).length;return{main:`${top.meta.code}${same>1?` ${same}`:''}`,sub:`${local&&top.f===local?'HOME · ':''}${top.meta.name.toUpperCase()}`,accent:top.meta.color}}
   let main='NONE',sub='NO ACTIVE THREATS',accent='#8da4ad';if(ltg!=null&&ltg>=60){main=`LTG ${Math.round(ltg)}%`;sub=mesh!=null&&mesh>=25.4?`HAIL ${(mesh/25.4).toFixed(1)}\"`:'IN VIEW, NEXT 30 MIN';accent='#72dcf6'}else if(mesh!=null&&mesh>=25.4){main=`HAIL ${(mesh/25.4).toFixed(1)}\"`;sub='MRMS MESH IN VIEW';accent='#ff84d7'}else if(tropical){main='TROPICS';sub='NHC FEATURES ACTIVE';accent='#ffd160'}return{main,sub,accent}
+}
+
+function eHeader(){
+  const w=state.weather||{},latest=state.frames.at(-1)?.time,age=Number.isFinite(ageMs())?Math.max(0,Math.round(ageMs()/60000)):null,cl=w.cloudCover!=null?Math.round(w.cloudCover*100):null,pop=Number.isFinite(w.forecast?.pop)?Math.round(w.forecast.pop):null,local=localAlert(),lm=local?alertMeta(local):null,fresh=freshness();
+  const g=ctx.createLinearGradient(0,0,0,E_MAP_TOP);g.addColorStop(0,'rgba(3,9,13,.98)');g.addColorStop(.78,'rgba(3,10,14,.92)');g.addColorStop(1,'rgba(3,10,14,.72)');ctx.fillStyle=g;ctx.fillRect(0,0,CFG.width,E_MAP_TOP);ctx.fillStyle='#31b8de';ctx.fillRect(0,0,3,E_MAP_TOP);
+  ctx.textBaseline='middle';ctx.textAlign='left';ctx.fillStyle='#f1f6f8';ctx.font='900 9.2px Arial,Helvetica,sans-serif';ctx.fillText('RDR',9,8.2);ctx.fillStyle='#7ed9f4';ctx.font='800 5.8px Arial,Helvetica,sans-serif';ctx.fillText(view().name,9,19.6);
+  ctx.fillStyle='#9fb2bb';ctx.font='700 4.6px Arial,Helvetica,sans-serif';ctx.fillText('MRMS REFLECTIVITY',65,8.3);ctx.fillStyle=fresh==='live'?'#53e895':fresh==='delayed'?'#f0c756':'#f06a62';ctx.beginPath();ctx.arc(67,19.4,1.6,0,Math.PI*2);ctx.fill();ctx.fillStyle='#c8d5da';ctx.font='800 4.8px Arial,Helvetica,sans-serif';ctx.fillText(`${fresh.toUpperCase()}${latest?`  ${utcTime(latest)}${age!=null?`  ${age}m`:''}`:''}`,72,19.4);
+  if(local){ctx.fillStyle=lm.color;ctx.font='900 5.2px Arial,Helvetica,sans-serif';ctx.textAlign='center';ctx.fillText(`${lm.code} ALERT AT HOME`,252,19.4)}
+  ctx.textAlign='right';ctx.fillStyle='#f5f8f9';ctx.font='500 14.5px Arial,Helvetica,sans-serif';ctx.fillText(w.temp!=null?`${w.temp}°`:'--°',374,9.3);ctx.fillStyle='#dfe7ea';ctx.font='800 7.6px Arial,Helvetica,sans-serif';ctx.fillText(new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}),451,9.2);ctx.fillStyle='#98adb6';ctx.font='700 4.7px Arial,Helvetica,sans-serif';const wx=[w.windDir&&w.windMph!=null?`${w.windDir} ${w.windMph} MPH`:null,w.rh!=null?`RH ${w.rh}%`:null,pop!=null?`NEXT HR ${pop}%`:cl!=null?`CLOUD ${cl}%`:null].filter(Boolean).join('  •  ');ctx.fillText(eFitText(wx||'CURRENT CONDITIONS',174,'700 4.7px Arial,Helvetica,sans-serif'),451,20);
+  ctx.strokeStyle='rgba(119,151,164,.28)';ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(0,E_MAP_TOP-.5);ctx.lineTo(CFG.width,E_MAP_TOP-.5);ctx.stroke();
 }
 
 render=function(now=performance.now()){
