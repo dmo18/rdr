@@ -1,4 +1,4 @@
-name: Probe live MRMS browser radar
+name: Probe native live MRMS decoder
 
 on:
   push:
@@ -15,60 +15,35 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-
-      - name: Inspect live MRMS GRIB2 structure
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat > /tmp/probe.mjs <<'JS'
-          import zlib from 'node:zlib';
-          const day=new Date().toISOString().slice(0,10).replaceAll('-','');
-          const prefix=`CONUS/MergedReflectivityQCComposite_00.50/${day}/`;
-          const list=`https://noaa-mrms-pds.s3.amazonaws.com/?list-type=2&prefix=${encodeURIComponent(prefix)}&max-keys=1000`;
-          const xml=await (await fetch(list)).text();
-          const keys=[...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map(m=>m[1]).filter(k=>k.endsWith('.grib2.gz')).sort();
-          if(!keys.length)throw Error('no current MRMS objects');
-          const key=keys.at(-1),object=`https://noaa-mrms-pds.s3.amazonaws.com/${key}`;
-          const gz=Buffer.from(await (await fetch(object)).arrayBuffer()),raw=zlib.gunzipSync(gz),dv=new DataView(raw.buffer,raw.byteOffset,raw.byteLength);
-          const u32=o=>dv.getUint32(o,false),u16=o=>dv.getUint16(o,false),i16sm=o=>{const n=u16(o);return(n&0x8000)?-(n&0x7fff):(n&0x7fff)},f32=o=>dv.getFloat32(o,false),i32sm=o=>{const n=u32(o);return(n&0x80000000)?-(n&0x7fffffff):(n&0x7fffffff)};
-          let o=16,s3=null,s5=null,s7=null,s1=null;
-          while(o<raw.length-4){if(raw.subarray(o,o+4).toString()==='7777')break;const len=u32(o),num=dv.getUint8(o+4);if(num===1)s1={o,len};if(num===3)s3={o,len};if(num===5)s5={o,len};if(num===7)s7={o,len};o+=len}
-          if(!s3||!s5||!s7)throw Error('missing sections');
-          const gridTemplate=u16(s3.o+12),nx=u32(s3.o+30),ny=u32(s3.o+34),la1=i32sm(s3.o+46)/1e6,lo1=i32sm(s3.o+50)/1e6,la2=i32sm(s3.o+55)/1e6,lo2=i32sm(s3.o+59)/1e6,dx=u32(s3.o+63)/1e6,dy=u32(s3.o+67)/1e6,scan=dv.getUint8(s3.o+71);
-          const rep=u16(s5.o+9),R=f32(s5.o+11),E=i16sm(s5.o+15),D=i16sm(s5.o+17),bits=dv.getUint8(s5.o+19),type=dv.getUint8(s5.o+20),count=u32(s5.o+5);
-          const png=raw.subarray(s7.o+5,s7.o+s7.len),sig=png.subarray(0,8).toString('hex'),ihdrLen=png.readUInt32BE(8),chunk=png.subarray(12,16).toString(),pw=png.readUInt32BE(16),ph=png.readUInt32BE(20),pbits=png[24],colorType=png[25];
-          let year=dv.getUint16(s1.o+12,false),mon=dv.getUint8(s1.o+14),day2=dv.getUint8(s1.o+15),hour=dv.getUint8(s1.o+16),min=dv.getUint8(s1.o+17),sec=dv.getUint8(s1.o+18);const ref=new Date(Date.UTC(year,mon-1,day2,hour,min,sec));
-          console.log('KEY',key);console.log('OBJECT',object);console.log('LIST',list);console.log('REF',ref.toISOString());
-          console.log('GRID_TEMPLATE',gridTemplate,'NX',nx,'NY',ny,'LA1',la1,'LO1',lo1,'LA2',la2,'LO2',lo2,'DX',dx,'DY',dy,'SCAN',scan.toString(16));
-          console.log('REP_TEMPLATE',rep,'COUNT',count,'R',R,'E',E,'D',D,'BITS',bits,'TYPE',type);
-          console.log('PNG','SIG',sig,'IHDRLEN',ihdrLen,'CHUNK',chunk,'WIDTH',pw,'HEIGHT',ph,'BITDEPTH',pbits,'COLORTYPE',colorType,'BYTES',png.length);
-          JS
-          node /tmp/probe.mjs | tee /tmp/out
-          obj=$(grep '^OBJECT ' /tmp/out | cut -d' ' -f2-); list=$(grep '^LIST ' /tmp/out | cut -d' ' -f2-)
-          echo '--- S3 CORS'
-          curl -sSI -H 'Origin: https://dmo18.github.io' "$list" | grep -iE 'HTTP/|access-control|content-type' || true
-          curl -sSI -H 'Origin: https://dmo18.github.io' "$obj" | grep -iE 'HTTP/|access-control|content-type' || true
-          echo '--- NCEP raw CORS'
-          curl -sSI -H 'Origin: https://dmo18.github.io' 'https://mrms.ncep.noaa.gov/2D/MergedReflectivityQCComposite/MRMS_MergedReflectivityQCComposite.latest.grib2.gz' | grep -iE 'HTTP/|access-control|content-type|location' || true
-
-      - name: Test raw sources from actual browser origin
+      - name: Run native browser decoder against newest MRMS
         shell: bash
         run: |
           set -euo pipefail
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           mkdir -p /tmp/site
           cat > /tmp/site/index.html <<'HTML'
-          <!doctype html><meta charset="utf-8"><body data-ready="false"><pre id=o></pre><script>
-          (async()=>{const out=[];async function test(name,url){try{const r=await fetch(url,{cache:'no-store'});out.push(name+': '+r.status+' '+r.type+' '+r.headers.get('content-type'));if(r.ok)await r.arrayBuffer();return r.ok}catch(e){out.push(name+': ERROR '+e);return false}}
-          const day=new Date().toISOString().slice(0,10).replaceAll('-',''),prefix=`CONUS/MergedReflectivityQCComposite_00.50/${day}/`,list=`https://noaa-mrms-pds.s3.amazonaws.com/?list-type=2&prefix=${encodeURIComponent(prefix)}&max-keys=1000`;
-          let ok=false;try{const r=await fetch(list,{cache:'no-store'}),xml=await r.text(),keys=[...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map(m=>m[1]).filter(k=>k.endsWith('.grib2.gz')).sort();out.push('s3-list: '+r.status+' keys='+keys.length);if(keys.length)ok=await test('s3-object','https://noaa-mrms-pds.s3.amazonaws.com/'+keys.at(-1))}catch(e){out.push('s3-list: ERROR '+e)}
-          const ncep=await test('ncep-latest','https://mrms.ncep.noaa.gov/2D/MergedReflectivityQCComposite/MRMS_MergedReflectivityQCComposite.latest.grib2.gz');document.getElementById('o').textContent=out.join('\n');document.body.dataset.ready='true';document.body.dataset.s3=String(ok);document.body.dataset.ncep=String(ncep)})()
+          <!doctype html><meta charset="utf-8"><body data-ready="false"><pre id=o>starting</pre><script>
+          const sm16=n=>(n&0x8000)?-(n&0x7fff):(n&0x7fff),sm32=n=>(n&0x80000000)?-(n&0x7fffffff):(n&0x7fffffff);
+          async function inflate(buf,kind){return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream(kind))).arrayBuffer()}
+          function sections(ab){const d=new DataView(ab),u=new Uint8Array(ab),u32=o=>d.getUint32(o,false),u16=o=>d.getUint16(o,false);let o=16,s={};while(o<u.length-4){if(u[o]===55&&u[o+1]===55&&u[o+2]===55&&u[o+3]===55)break;const len=u32(o),n=d.getUint8(o+4);s[n]={o,len};o+=len}const a=s[1],g=s[3],r=s[5],z=s[7];if(!a||!g||!r||!z)throw Error('missing GRIB sections');const R=d.getFloat32(r.o+11,false),E=sm16(u16(r.o+15)),D=sm16(u16(r.o+17));return{d,u,R,E,D,bits:d.getUint8(r.o+19),nx:u32(g.o+30),ny:u32(g.o+34),la1:sm32(u32(g.o+46))/1e6,lo1:sm32(u32(g.o+50))/1e6,dx:u32(g.o+63)/1e6,dy:u32(g.o+67)/1e6,scan:d.getUint8(g.o+71),png:u.slice(z.o+5,z.o+z.len),ref:new Date(Date.UTC(d.getUint16(a.o+12,false),d.getUint8(a.o+14)-1,d.getUint8(a.o+15),d.getUint8(a.o+16),d.getUint8(a.o+17),d.getUint8(a.o+18)))}}
+          const paeth=(a,b,c)=>{const p=a+b-c,pa=Math.abs(p-a),pb=Math.abs(p-b),pc=Math.abs(p-c);return pa<=pb&&pa<=pc?a:pb<=pc?b:c};
+          async function decodePng16(png,meta){const d=new DataView(png.buffer,png.byteOffset,png.byteLength);let o=8,id=[];while(o<png.length){const n=d.getUint32(o,false),t=String.fromCharCode(...png.subarray(o+4,o+8));if(t==='IDAT')id.push(png.slice(o+8,o+8+n));o+=12+n;if(t==='IEND')break}const n=id.reduce((a,b)=>a+b.length,0),cat=new Uint8Array(n);let q=0;for(const x of id){cat.set(x,q);q+=x.length}const inf=new Uint8Array(await inflate(cat,'deflate')),stride=meta.nx*2,row=new Uint8Array(stride),prev=new Uint8Array(stride);let pos=0,lo=Infinity,hi=-Infinity,valid=0,home=null;const hx=Math.round(((360-80.18787062578414)-meta.lo1)/meta.dx),hy=Math.round((meta.la1-26.06197904865014)/meta.dy);for(let y=0;y<meta.ny;y++){const filter=inf[pos++];for(let i=0;i<stride;i++){const raw=inf[pos++],a=i>=2?row[i-2]:0,b=prev[i],c=i>=2?prev[i-2]:0;row[i]=(raw+(filter===0?0:filter===1?a:filter===2?b:filter===3?Math.floor((a+b)/2):filter===4?paeth(a,b,c):0))&255}for(let x=0;x<meta.nx;x+=17){const X=(row[x*2]<<8)|row[x*2+1],v=(meta.R+X*(2**meta.E))*(10**(-meta.D));if(v>-900){valid++;lo=Math.min(lo,v);hi=Math.max(hi,v)}}if(y===hy&&hx>=0&&hx<meta.nx){const X=(row[hx*2]<<8)|row[hx*2+1];home=(meta.R+X*(2**meta.E))*(10**(-meta.D))}prev.set(row)}return{lo,hi,valid,home,bytes:inf.length}}
+          (async()=>{try{const day=new Date().toISOString().slice(0,10).replaceAll('-',''),prefix=`CONUS/MergedReflectivityQCComposite_00.50/${day}/`,lr=await fetch(`https://noaa-mrms-pds.s3.amazonaws.com/?list-type=2&prefix=${encodeURIComponent(prefix)}&max-keys=1000`,{cache:'no-store'}),xml=await lr.text(),keys=[...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map(m=>m[1]).filter(k=>k.endsWith('.grib2.gz')).sort(),key=keys.at(-1);if(!key)throw Error('no current key');const rr=await fetch('https://noaa-mrms-pds.s3.amazonaws.com/'+key,{cache:'no-store'}),grib=await inflate(await rr.arrayBuffer(),'gzip'),m=sections(grib);if(m.bits!==16||m.nx!==7000||m.ny!==3500)throw Error(`unexpected grid ${m.nx}x${m.ny} bits=${m.bits}`);const stats=await decodePng16(m.png,m);document.body.dataset.ready='true';document.body.dataset.valid=String(stats.valid);document.body.dataset.home=String(stats.home);document.getElementById('o').textContent=JSON.stringify({key,ref:m.ref.toISOString(),R:m.R,E:m.E,D:m.D,nx:m.nx,ny:m.ny,stats},null,2)}catch(e){document.body.dataset.error=String(e);document.getElementById('o').textContent=String(e)}})();
           </script>
           HTML
-          cd /tmp/site;python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/http.log 2>&1 & pid=$!;trap 'kill $pid || true' EXIT;sleep 1
-          timeout 90s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --virtual-time-budget=60000 --dump-dom 'http://127.0.0.1:8765/' > /tmp/dom.html
+          cd /tmp/site; python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/http.log 2>&1 & pid=$!; trap 'kill $pid || true' EXIT; sleep 1
+          timeout 150s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --virtual-time-budget=120000 --dump-dom 'http://127.0.0.1:8765/' > /tmp/dom.html
           cat /tmp/dom.html
           grep -q 'data-ready="true"' /tmp/dom.html
+          grep -Eq 'data-valid="[1-9][0-9]{3,}"' /tmp/dom.html
+
+      - name: Confirm live severe-weather product prefixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          day=$(date -u +%Y%m%d)
+          for product in LightningProbabilityNext30minGrid MESH MergedAzShear0to2kmAGL; do
+            url="https://noaa-mrms-pds.s3.amazonaws.com/?list-type=2&prefix=CONUS%2F${product}%2F${day}%2F&max-keys=5"
+            echo "=== $product"
+            curl -fsSL "$url" | grep -o '<Key>[^<]*</Key>' | tail -1 || true
+          done
