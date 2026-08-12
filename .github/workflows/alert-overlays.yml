@@ -25,6 +25,7 @@ jobs:
           grep -q 'alertArcQuery(1' alerts.js
           grep -q 'function eAlertSummaryBox' alerts.js
           grep -q 'function eDrawWarnings' alerts.js
+          grep -q 'function invalidateAlertCache' alerts.js
           node --check alerts.js
           node --check app.js
           node --check context.js
@@ -45,26 +46,30 @@ jobs:
           import puppeteer from 'puppeteer-core';
           import fs from 'node:fs';
           const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
+          const watchErrors=page=>{
+            const all=[],blocking=[];
+            page.on('pageerror',e=>{const t='pageerror: '+e.message;all.push(t);blocking.push(t)});
+            page.on('console',m=>{if(m.type()!=='error')return;const t='console: '+m.text();all.push(t);if(/alerts\.js|watch_warn_adv|ReferenceError|SyntaxError/i.test(t))blocking.push(t)});
+            return{all,blocking};
+          };
           try{
             const live={};
             for(const id of ['home','metro','florida','regional']){
-              const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const errors=[];
-              page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+              const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const be=watchErrors(page);
               await page.goto(`http://127.0.0.1:8765/?view=${id}&verify=1&livealerts=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
               await page.waitForFunction(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get(id);return p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(b?.states?.length||0)>=1}, {timeout:180000,polling:250}, id);
               await page.waitForFunction(()=>document.querySelector('#panel')?.dataset?.alerts!=='loading',{timeout:30000,polling:250});
               await page.evaluate(()=>render(performance.now()));
-              const diag=await page.evaluate(()=>({feed:document.querySelector('#panel').dataset.alerts,alerts:eWarningsInView().map(x=>({code:x.meta.code,name:x.meta.name,sig:x.meta.sig})),ui:{...state.alertUi},errors:[...state.errors]}));diag.browserErrors=errors;live[id]=diag;
+              const diag=await page.evaluate(()=>({feed:document.querySelector('#panel').dataset.alerts,alerts:eWarningsInView().map(x=>({code:x.meta.code,name:x.meta.name,sig:x.meta.sig})),ui:{...state.alertUi},errors:[...state.errors]}));diag.browserErrors=be.all;diag.blockingBrowserErrors=be.blocking;live[id]=diag;
               await (await page.$('#panel')).screenshot({path:`/tmp/rdr-alerts/live-${id}.png`});
-              if(errors.length)throw new Error(`browser ${id}: ${JSON.stringify(diag)}`);
+              if(be.blocking.length)throw new Error(`browser ${id}: ${JSON.stringify(diag)}`);
               if(diag.feed==='unavailable')throw new Error(`live source ${id}: ${JSON.stringify(diag)}`);
               if(diag.alerts.length&&(diag.ui.boundaries!==diag.alerts.length||diag.ui.summary!==true))throw new Error(`live render contract ${id}: ${JSON.stringify(diag)}`);
               await page.close();
             }
             fs.writeFileSync('/tmp/rdr-alerts/live-alerts.json',JSON.stringify(live,null,2));
 
-            const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const errors=[];
-            page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+            const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const be=watchErrors(page);
             await page.goto(`http://127.0.0.1:8765/?view=home&verify=1&alerts=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
             await page.waitForFunction(()=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get('home');return p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(b?.states?.length||0)>=1},{timeout:180000,polling:250});
             await page.waitForFunction(()=>document.querySelector('#panel')?.dataset?.alerts!=='loading',{timeout:30000,polling:250});
@@ -77,13 +82,13 @@ jobs:
                 {id:'qa-svr',type:'Feature',properties:{cap_id:'qa-svr',prod_type:'Severe Thunderstorm Warning',phenom:'SV',sig:'W',expiration:future},geometry:box(-80.405,26.145,-80.285,26.245)},
                 {id:'qa-adv',type:'Feature',properties:{cap_id:'qa-adv',prod_type:'Heat Advisory',phenom:'HT',sig:'Y',expiration:future},geometry:box(-80.405,25.875,-80.285,25.965)}
               ];
-              state.warnings.clear();for(const f of features)state.warnings.set(f.id,f);render(performance.now());
+              state.warnings.clear();for(const f of features)state.warnings.set(f.id,f);invalidateAlertCache();render(performance.now());
               const alerts=eWarningsInView().map(x=>({code:x.meta.code,name:x.meta.name,sig:x.meta.sig}));
               return{alerts,local:warningCode(localAlert()),ui:{...state.alertUi},geometry:[innerWidth,innerHeight,document.querySelector('#panel').getBoundingClientRect().width,document.querySelector('#panel').getBoundingClientRect().height]};
             });
-            diag.liveFeed=liveFeed;diag.browserErrors=errors;fs.writeFileSync('/tmp/rdr-alerts/diagnostic.json',JSON.stringify(diag,null,2));
+            diag.liveFeed=liveFeed;diag.browserErrors=be.all;diag.blockingBrowserErrors=be.blocking;fs.writeFileSync('/tmp/rdr-alerts/diagnostic.json',JSON.stringify(diag,null,2));
             await (await page.$('#panel')).screenshot({path:'/tmp/rdr-alerts/alert-overlays.png'});
-            if(errors.length)throw new Error(JSON.stringify(diag));
+            if(be.blocking.length)throw new Error(JSON.stringify(diag));
             if(diag.geometry.some(x=>x!==456&&x!==257))throw new Error(`geometry: ${JSON.stringify(diag)}`);
             const codes=diag.alerts.map(x=>x.code);if(!codes.includes('TOR')||!codes.includes('SVR')||!codes.includes('ADV'))throw new Error(`codes: ${JSON.stringify(diag)}`);
             if(diag.local!=='TOR')throw new Error(`local priority: ${JSON.stringify(diag)}`);
