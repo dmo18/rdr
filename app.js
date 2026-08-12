@@ -1,29 +1,35 @@
-/* RDR renderer. All weather layers come from same-origin data/ files produced by scripts/ingest.py from raw NOAA feeds. */
-const CFG={width:456,height:257,header:22,mapTop:22,mapBottom:238,mapHeight:216,home:{lat:26.06197904865014,lon:-80.18787062578414},refreshMs:60000,views:[
-{id:'home',name:'HOME',duration:12000,bbox:[-80.48,25.82,-79.92,26.31],labels:[['FT LAUDERDALE',26.1224,-80.1373],['HOLLYWOOD',26.0112,-80.1495],['DAVIE',26.0765,-80.2521],['MIRAMAR',25.9861,-80.3036]]},
-{id:'metro',name:'BROWARD / MIAMI',duration:11000,bbox:[-81.08,25.20,-79.65,26.95],labels:[['FT LAUDERDALE',26.1224,-80.1373],['MIAMI',25.7617,-80.1918],['WEST PALM',26.7153,-80.0534],['HOMESTEAD',25.4687,-80.4776],['KEY LARGO',25.0865,-80.4473]]},
-{id:'florida',name:'FLORIDA',duration:10000,bbox:[-87.8,24.0,-79.3,31.25],labels:[['MIAMI',25.7617,-80.1918],['KEY WEST',24.5551,-81.78],['NAPLES',26.1423,-81.7948],['TAMPA',27.9506,-82.4572],['ORLANDO',28.5383,-81.3792],['JACKSONVILLE',30.3322,-81.6557]]},
-{id:'regional',name:'GULF / CUBA',duration:12000,bbox:[-98.0,18.0,-72.0,32.8],labels:[['FLORIDA',27.4,-81.7],['CUBA',22.2,-79.7],['HAVANA',23.1136,-82.3666],['BAHAMAS',24.3,-76.7],['YUCATAN',20.8,-87.1],['GULF OF MEXICO',25.6,-90.0]]}]};
-const panel=document.getElementById('panel'),canvas=document.getElementById('display'),ctx=canvas.getContext('2d',{alpha:false}),boot=document.getElementById('boot'),query=new URLSearchParams(location.search),forced=query.get('view');
-const state={current:0,radar:null,context:null,image:null,rotation:null,errors:[]};
-function fit(){const s=Math.min(innerWidth/CFG.width,innerHeight/CFG.height);panel.style.transform=`scale(${Math.max(.2,s)})`}
-function view(){return CFG.views[state.current]}
-function xy(lat,lon,b=view().bbox){const[w,s,e,n]=b;return{x:(lon-w)/(e-w)*CFG.width,y:CFG.mapTop+(n-lat)/(n-s)*CFG.mapHeight}}
-function within(lat,lon,b=view().bbox){return lon>=b[0]&&lon<=b[2]&&lat>=b[1]&&lat<=b[3]}
-async function json(url){const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw new Error(`${r.status} ${url}`);return r.json()}
-function image(url){return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=`${url}?v=${Date.now()}`})}
-function drawGeometry(g,stroke,fill,width=1){if(!g)return;ctx.save();ctx.lineWidth=width;ctx.strokeStyle=stroke;ctx.fillStyle=fill||'transparent';const polys=g.type==='Polygon'?[g.coordinates]:g.type==='MultiPolygon'?g.coordinates:null,lines=g.type==='LineString'?[g.coordinates]:g.type==='MultiLineString'?g.coordinates:null,points=g.type==='Point'?[g.coordinates]:g.type==='MultiPoint'?g.coordinates:null;if(polys)for(const poly of polys){ctx.beginPath();for(const ring of poly){ring.forEach((c,i)=>{const p=xy(c[1],c[0]);i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)});ctx.closePath()}if(fill)ctx.fill('evenodd');ctx.stroke()}if(lines)for(const line of lines){ctx.beginPath();line.forEach((c,i)=>{const p=xy(c[1],c[0]);i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)});ctx.stroke()}if(points)for(const c of points){const p=xy(c[1],c[0]);ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);if(fill)ctx.fill();ctx.stroke()}ctx.restore()}
-function warningStyle(f){const p=f.properties||{},ph=String(p.phenom||p.event||'').toUpperCase(),sg=String(p.sig||'').toUpperCase();if(ph==='TO'||ph.includes('TORNADO'))return['#ff46ff','rgba(255,40,255,.08)',2];if(ph==='SV'||ph.includes('SEVERE'))return['#ffe84a','rgba(255,220,50,.06)',1.7];if(ph==='FF'||ph.includes('FLOOD'))return['#41ff6b','rgba(60,255,100,.05)',1.5];return[sg==='W'?'#ff8755':'#83c8ff','rgba(255,255,255,.025)',1]}
-function drawBase(){ctx.fillStyle='#031019';ctx.fillRect(0,CFG.mapTop,CFG.width,CFG.mapHeight);for(const f of state.context?.states?.features||[])drawGeometry(f.geometry,'rgba(180,215,230,.36)',null,.75);if(view().id==='home'||view().id==='metro')for(const f of state.context?.counties?.features||[])drawGeometry(f.geometry,'rgba(150,185,205,.17)',null,.45)}
-function drawTropics(){for(const f of state.context?.tropics||[]){const id=f._layer;if(id===6||id===16)drawGeometry(f.geometry,'#7fe9ff',null,1.4);else if(id===5)drawGeometry(f.geometry,'#fff','#fff',1);else if(id===7||id===15)drawGeometry(f.geometry,'#ff5d65','rgba(255,70,80,.09)',1.2);else drawGeometry(f.geometry,'rgba(255,184,70,.8)','rgba(255,164,50,.035)',.9)}}
-function drawWarnings(){for(const f of state.context?.warnings?.features||[]){const[s,fill,w]=warningStyle(f);drawGeometry(f.geometry,s,fill,w)}}
-function drawLabels(){ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='700 7px ui-monospace,SFMono-Regular,Menlo,monospace';for(const[name,lat,lon]of view().labels){if(!within(lat,lon))continue;const p=xy(lat,lon);ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.85)';ctx.strokeText(name,p.x,p.y);ctx.fillStyle='rgba(235,247,255,.88)';ctx.fillText(name,p.x,p.y)}if(within(CFG.home.lat,CFG.home.lon)){const h=xy(CFG.home.lat,CFG.home.lon);ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.beginPath();ctx.arc(h.x,h.y,6,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#54dcff';ctx.beginPath();ctx.arc(h.x,h.y,2.3,0,Math.PI*2);ctx.fill()}ctx.restore()}
-function topAlert(){const f=state.context?.warnings?.features?.[0];if(!f)return'';const p=f.properties||{};return String(p.prod_type||p.event||p.phenom||'ALERT').replaceAll('_',' ').toUpperCase()}
-function fmt(t){if(!t)return'--:--';const d=new Date(t);return Number.isFinite(d.getTime())?d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}).replace(' ',''):'--:--'}
-function drawHUD(){ctx.fillStyle='rgba(1,6,10,.96)';ctx.fillRect(0,0,456,22);ctx.fillRect(0,238,456,19);ctx.font='900 8px ui-monospace,SFMono-Regular,Menlo,monospace';ctx.textBaseline='middle';ctx.textAlign='left';ctx.fillStyle='#57e6ff';ctx.fillText(`RDR  ${view().name}`,6,11);const fc=state.context?.forecast?.[0],weather=fc?`${fc.temperature}°${fc.temperatureUnit} ${fc.windSpeed} ${fc.windDirection}`:'';ctx.textAlign='right';ctx.fillStyle='#d8e8f2';ctx.fillText(weather,450,11);ctx.font='900 7px ui-monospace,SFMono-Regular,Menlo,monospace';ctx.textAlign='left';const h=state.radar?.views?.home||{},near=h.nearest?` · RAIN ${Math.max(1,Math.round(h.nearest.miles))}MI ${h.nearest.dir}`:'';ctx.fillStyle=h.status==='DRY'?'#8cd1ff':h.status==='SPRINKLE'?'#61e98b':h.status==='RAIN'?'#ffe95d':h.status==='HEAVY'?'#ff9a45':'#ff5a76';ctx.fillText(`HOME ${h.status||'--'}${near}`,6,247);const vm=state.radar?.views?.[view().id]||{},motion=h.motion&&h.motion.mph>2?`MOVE ${h.motion.dir} ${h.motion.mph}MPH · `:'';ctx.fillStyle='#e7f2f8';ctx.textAlign='right';ctx.fillText(`${motion}${fmt(vm.time)}`,450,247);const alert=topAlert();if(alert){ctx.textAlign='center';ctx.fillStyle='#ffdf55';ctx.fillText(alert,228,31)}}
-function render(){drawBase();if(state.image)ctx.drawImage(state.image,0,CFG.mapTop,456,216);drawTropics();drawWarnings();drawLabels();drawHUD()}
-async function loadData(){const stamp=Date.now();const [r,c,i]=await Promise.all([json(`data/radar.json?v=${stamp}`),json(`data/context.json?v=${stamp}`),image(`data/${view().id}.png`)]);state.radar=r;state.context=c;state.image=i;render();panel.dataset.ready='true';panel.dataset.feed='normalized-noaa';boot.classList.add('off')}
-async function show(i){state.current=i;panel.dataset.view=view().id;state.image=null;try{await loadData()}catch(e){state.errors.push(String(e));render()}}
-function schedule(){clearTimeout(state.rotation);if(forced)return;state.rotation=setTimeout(async()=>{await show((state.current+1)%CFG.views.length);schedule()},view().duration)}
-async function init(){fit();addEventListener('resize',fit,{passive:true});if(forced){const i=CFG.views.findIndex(v=>v.id===forced);if(i>=0)state.current=i}await show(state.current);schedule();setInterval(()=>loadData().catch(e=>state.errors.push(String(e))),CFG.refreshMs);window.__RDR__=state}
-init();
+'use strict';
+
+async function showView(index){
+  state.view=(index+CFG.views.length)%CFG.views.length;panel.dataset.view=view().id;state.cursor=Math.max(0,state.frames.length-1);render();
+  try{await loadBoundaries(view())}catch(e){state.errors.push(`boundaries: ${e}`)}render();
+}
+function scheduleRotation(){
+  clearTimeout(state.rotateTimer);if(forcedView)return;
+  state.rotateTimer=setTimeout(async()=>{await showView(state.view+1);scheduleRotation()},view().duration);
+}
+function startAnimation(){
+  clearInterval(state.animTimer);state.animTimer=setInterval(()=>{
+    if(state.frames.length>1){state.cursor=(state.cursor+1)%state.frames.length;render()}
+  },CFG.frameMs);
+}
+function startPolling(){
+  clearInterval(state.pollTimer);clearInterval(state.vectorTimer);clearInterval(state.severeTimer);
+  state.pollTimer=setInterval(()=>pollRadar().catch(e=>state.errors.push(String(e))),CFG.pollMs);
+  state.vectorTimer=setInterval(()=>refreshVectors().catch(e=>state.errors.push(String(e))),CFG.vectorMs);
+  state.severeTimer=setInterval(()=>loadSevere().catch(e=>state.errors.push(String(e))),CFG.severeMs);
+}
+async function init(){
+  fitPanel();addEventListener('resize',fitPanel,{passive:true});
+  if(forcedView){const i=CFG.views.findIndex(v=>v.id===forcedView);if(i>=0)state.view=i}
+  panel.dataset.view=view().id;render();
+  const contextPromise=refreshVectors().catch(e=>state.errors.push(String(e)));
+  try{await pollRadar({initial:true})}finally{
+    if(!state.frames.length){panel.dataset.ready='true';panel.dataset.radar='unavailable';panel.dataset.freshness='stale';boot.classList.add('off');render()}
+  }
+  await Promise.allSettled([contextPromise,verifyMode?Promise.resolve():loadSevere()]);
+  state.cursor=Math.max(0,state.frames.length-1);deriveHome();render();startAnimation();scheduleRotation();startPolling();
+  window.__RDR__=state;
+}
+
+init().catch(e=>{state.errors.push(String(e));panel.dataset.ready='true';panel.dataset.radar='unavailable';panel.dataset.freshness='stale';boot.classList.add('off');render()});
