@@ -1,11 +1,14 @@
 :root{--w:456px;--h:257px}
 *{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
-body{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
-#shell{position:relative;width:100%;height:100%;display:grid;place-items:center;background:#000;overflow:hidden}
-#panel{position:relative;width:var(--w);height:var(--h);overflow:hidden;background:#02070c;transform-origin:center}
-#display{display:block;width:456px;height:257px;background:#02070c}
-#boot{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;background:radial-gradient(circle at 50% 42%,#102536,#02070c 72%);color:#eef8ff;transition:opacity .25s,visibility .25s}
-#boot b{font:950 22px/1 system-ui;letter-spacing:.18em}
-#boot span{margin-top:7px;font:900 7px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.13em;color:#8ea5b7}
-#boot.off{opacity:0;visibility:hidden}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#010307;color:#eaf7ff;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{display:grid;place-items:center}
+#shell{position:relative;width:100vw;height:100vh;overflow:hidden;background:#010307}
+#panel{position:absolute;left:50%;top:50%;width:var(--w);height:var(--h);transform-origin:center center;background:#02070d;overflow:hidden;box-shadow:0 0 0 1px rgba(129,207,238,.14),0 12px 40px rgba(0,0,0,.55)}
+#display{display:block;width:456px;height:257px;background:#02070d}
+#boot{position:absolute;inset:0;z-index:5;display:grid;place-content:center;justify-items:center;gap:5px;text-align:center;background:radial-gradient(circle at 50% 48%,#092331 0,#02080e 48%,#010307 100%);transition:opacity .32s ease,visibility .32s ease}
+#boot b{font:900 24px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.16em;color:#63e6ff;text-shadow:0 0 18px rgba(74,220,255,.28)}
+#boot span{font:800 7px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.17em;color:#8ca9b8}
+#boot.off{opacity:0;visibility:hidden;pointer-events:none}
+#panel[data-freshness="delayed"] #display{filter:saturate(.94)}
+#panel[data-freshness="stale"] #display{filter:saturate(.72)}
+@media (prefers-reduced-motion:reduce){#boot{transition:none}}
