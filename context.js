@@ -15,6 +15,18 @@ async function loadBoundaries(def=view()){
   const [states,counties]=await Promise.all(jobs),value={states,counties};state.boundaries.set(def.id,value);render();return value;
 }
 
+function surfaceLayer(def){return def.id==='home'?160:def.id==='metro'?150:def.id==='florida'?130:120}
+function featureTime(f){const t=f?.properties?.timeobs;if(t==null)return null;const d=new Date(t);return Number.isFinite(d.getTime())?d:null}
+async function loadSurfaceObs(def=view()){
+  try{
+    const fields='stationname,timeobs,cloudcover,cloudbase,winddir,windspeed,windgust,temperature,dewpoint,visibility';
+    const features=await arcQuery(CFG.surfaceObs,surfaceLayer(def),def.bbox,fields),cut=Date.now()-2*60*60*1000;
+    const current=features.filter(f=>{const d=featureTime(f);return !d||d.getTime()>=cut});
+    state.surface.set(def.id,current);panel.dataset.surface=current.length?'live':'empty';
+  }catch(e){state.errors.push(`surface: ${e}`);panel.dataset.surface='unavailable'}
+  render();
+}
+
 async function loadWarnings(){
   try{const features=await arcQuery(CFG.warnings,0,CFG.views[3].bbox);state.warnings.clear();for(const f of features)state.warnings.set(String(f.id??f.properties?.OBJECTID??Math.random()),f)}
   catch(e){state.errors.push(`warnings: ${e}`)}render();
@@ -27,6 +39,9 @@ async function loadTropics(){
 }
 
 function cToF(c){return Number.isFinite(c)?Math.round(c*9/5+32):null}
+function cloudCodeValue(code){
+  const s=String(code||'').toUpperCase();if(['CLR','SKC'].includes(s))return 0;if(s==='FEW')return .18;if(s==='SCT')return .42;if(s==='BKN')return .72;if(['OVC','VV'].includes(s))return 1;const n=parseFloat(s);return Number.isFinite(n)?clamp(n/10,0,1):null;
+}
 async function loadWeather(){
   try{
     const headers={Accept:'application/geo+json'};
@@ -35,10 +50,11 @@ async function loadWeather(){
     const stations=await fetchJson(stationsUrl,headers),station=stations?.features?.[0]?.id;if(!station)throw new Error('no NWS station');
     const obs=await fetchJson(`${station}/observations/latest`,headers),q=obs.properties||{},temp=cToF(q.temperature?.value),rh=Number.isFinite(q.relativeHumidity?.value)?Math.round(q.relativeHumidity.value):null;
     const windMph=Number.isFinite(q.windSpeed?.value)?Math.round(q.windSpeed.value*2.23694):null,windDir=Number.isFinite(q.windDirection?.value)?dir8(q.windDirection.value):null;
-    state.weather={temp,rh,windMph,windDir,text:q.textDescription||'',time:q.timestamp?new Date(q.timestamp):null,station:station.split('/').at(-1)};
+    const layers=Array.isArray(q.cloudLayers)?q.cloudLayers:[],cloudCover=layers.reduce((m,l)=>Math.max(m,cloudCodeValue(l?.amount)||0),0),cloudCode=layers.map(l=>l?.amount).filter(Boolean).at(-1)||((q.textDescription||'').toLowerCase().includes('clear')?'CLR':'');
+    state.weather={temp,rh,windMph,windDir,text:q.textDescription||'',time:q.timestamp?new Date(q.timestamp):null,station:station.split('/').at(-1),cloudCover,cloudCode};
   }catch(e){state.errors.push(`weather: ${e}`)}render();
 }
 
 async function refreshVectors(){
-  await Promise.allSettled([loadBoundaries(view()),loadWarnings(),loadTropics(),loadWeather()]);
+  await Promise.allSettled([loadBoundaries(view()),loadSurfaceObs(view()),loadWarnings(),loadTropics(),loadWeather()]);
 }
