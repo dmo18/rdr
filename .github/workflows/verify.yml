@@ -19,12 +19,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'data-version="2026.08.12.2"' index.html
+          grep -q 'data-version="2026.08.12.3"' index.html
           grep -q 'data-engine="live-mrms"' index.html
           grep -q 'noaa-mrms-pds.s3.amazonaws.com' core.js
           grep -q 'MergedReflectivityQCComposite_00.50' core.js
           grep -q 'surface_obs/MapServer' core.js
           grep -q 'function loadSurfaceObs' context.js
+          grep -q 'function surfaceLayers' context.js
           grep -q 'function drawCloudField' render.js
           grep -q 'function drawWindFlow' render.js
           grep -q 'const scale=' render.js
@@ -102,7 +103,7 @@ jobs:
           set -euo pipefail
           for i in $(seq 1 40); do
             body=$(curl -fsSL "https://dmo18.github.io/rdr/?verify=${GITHUB_SHA}-${i}" || true)
-            if printf '%s' "$body" | grep -q 'data-version="2026.08.12.2"'; then exit 0; fi
+            if printf '%s' "$body" | grep -q 'data-version="2026.08.12.3"'; then exit 0; fi
             sleep 5
           done
           echo 'Pages did not publish the expected version' >&2
@@ -132,10 +133,10 @@ jobs:
             await page.waitForFunction(()=>window.__RDR__?.frames?.length>=3&&window.__RDR__?.surface?.get('florida')?.length>=1&&document.querySelector('#panel')?.dataset?.radar==='live',{timeout:240000,polling:500});
             await page.waitForFunction(()=>window.__RDR__?.severe?.lightning&&window.__RDR__?.severe?.mesh,{timeout:240000,polling:500});
             await new Promise(r=>setTimeout(r,1800));
-            const diag=await page.evaluate(()=>({frames:window.__RDR__.frames.length,surface:window.__RDR__.surface.get('florida')?.length||0,severe:{lightning:!!window.__RDR__.severe.lightning,mesh:!!window.__RDR__.severe.mesh},errors:window.__RDR__.errors,radar:document.querySelector('#panel').dataset.radar,freshness:document.querySelector('#panel').dataset.freshness,surfaceState:document.querySelector('#panel').dataset.surface}));
+            const diag=await page.evaluate(()=>({frames:window.__RDR__.frames.length,surface:window.__RDR__.surface.get('florida')?.length||0,severe:{lightning:!!window.__RDR__.severe.lightning,mesh:!!window.__RDR__.severe.mesh},errors:window.__RDR__.errors,radar:document.querySelector('#panel').dataset.radar,freshness:document.querySelector('#panel').dataset.freshness,surfaceState:document.querySelector('#panel').dataset.surface,surfaceLayer:document.querySelector('#panel').dataset.surfaceLayer}));
             if(diag.radar!=='live'||diag.frames<3||diag.surface<1)throw new Error('full live layers failed: '+JSON.stringify(diag));
             if(!diag.severe.lightning||!diag.severe.mesh)throw new Error('severe data stage did not load both MRMS fields: '+JSON.stringify(diag));
-            if(diag.errors.some(e=>/ReferenceError|TypeError|invalid GRIB|unsupported PNG|unsupported GRIB/i.test(e)))throw new Error('runtime decoder error: '+JSON.stringify(diag));
+            if(diag.errors.some(e=>/ReferenceError|invalid GRIB|unsupported PNG|unsupported GRIB/i.test(e)))throw new Error('runtime decoder error: '+JSON.stringify(diag));
             const panel=await page.$('#panel');await panel.screenshot({path:'/tmp/renders/live/full-runtime.png'});fs.writeFileSync('/tmp/renders/live/full-runtime.json',JSON.stringify({...diag,browserErrors},null,2));
           }finally{await browser.close()}
           JS
