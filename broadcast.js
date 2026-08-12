@@ -39,6 +39,7 @@ function bVignette(){const g=ctx.createRadialGradient(CFG.width/2,CFG.height/2,C
 function bStaticMap(){ctx.save();bApplyCamera();ctx.drawImage(bBase(),0,0);ctx.restore()}
 function bMapLinesAndVectors(){ctx.save();bApplyCamera();ctx.drawImage(bLines(),0,0);drawTropics();drawWarnings();ctx.restore()}
 function bPerf(ms){if(!state.perf)state.perf={samples:[],last:null};state.perf.last=ms;state.perf.samples.push(ms);if(state.perf.samples.length>180)state.perf.samples.shift()}
+function bWarmCurrentView(){const t0=performance.now();bBase();bLines();for(const f of state.frames)bRadarCanvas(f);bCells();if(state.severe.lightning)bPeak(state.severe.lightning,view(),65,3);if(state.severe.mesh)bPeak(state.severe.mesh,view(),25.4,2);return performance.now()-t0}
 
 render=function(now=performance.now()){
   const t0=performance.now();ctx.fillStyle='#031119';ctx.fillRect(0,0,CFG.width,CFG.height);
