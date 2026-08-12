@@ -48,6 +48,8 @@ function makeSamplers(meta,defs=CFG.views){
 }
 
 function valueFromX(x,m){return(m.R+x*(2**m.E))*(10**(-m.D))}
+function sampleValue(v,kind){if(!Number.isFinite(v)||v<=-900)return null;if(kind==='radar'&&v<=-90)return 0;return v}
+function interpolated(a,b,t){if(a===null&&b===null)return null;if(a===null)return b;if(b===null)return a;return a+(b-a)*t}
 function normalizedValue(v,kind){
   if(!Number.isFinite(v)||v<=-900)return MISSING;
   if(kind==='radar'&&v<=-90)return 0;
@@ -79,7 +81,7 @@ async function decodePngToViews(meta,kind='radar'){
           const ix0=s.x0[x];if(ix0<0)continue;const ix1=s.x1[x],fx=s.xf[x];
           const topRow=task.y0===sy?row:prev;
           const a0=valueFromX(readBuf(topRow,ix0),meta),a1=valueFromX(readBuf(topRow,ix1),meta),b0=valueFromX(readBuf(row,ix0),meta),b1=valueFromX(readBuf(row,ix1),meta);
-          const top=interpolated(a0,a1,fx),bottom=interpolated(b0,b1,fx),v=interpolated(top,bottom,task.yf);
+          const top=interpolated(sampleValue(a0,kind),sampleValue(a1,kind),fx),bottom=interpolated(sampleValue(b0,kind),sampleValue(b1,kind),fx),v=interpolated(top,bottom,task.yf);
           s.data[base+x]=normalizedValue(v,kind);
         }
       }
