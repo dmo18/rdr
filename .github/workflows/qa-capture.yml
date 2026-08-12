@@ -28,12 +28,11 @@ jobs:
           set -euo pipefail
           export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           mkdir -p /tmp/rdr-qa/source /tmp/rdr-qa/captures
-          cat > /tmp/capture.mjs <<'JS'
+          cat > .qa-capture.mjs <<'JS'
           import puppeteer from 'puppeteer-core';
           import fs from 'node:fs';
           const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
           const payload={capturedAt:new Date().toISOString(),views:{},runtime:null};
-          const serializeTyped=o=>Object.fromEntries(Object.entries(o||{}).map(([k,v])=>[k,Array.from(v)]));
           try{
             for(const id of ['home','metro','florida','regional']){
               const page=await browser.newPage();
@@ -58,7 +57,7 @@ jobs:
             await page.goto(`https://dmo18.github.io/rdr/?view=florida&qaRuntime=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
             await page.waitForFunction(()=>window.__RDR__?.frames?.length>=4&&window.__RDR__?.severe?.lightning&&window.__RDR__?.severe?.mesh,{timeout:240000,polling:500});
             payload.runtime=await page.evaluate(()=>{
-              const s=window.__RDR__, cv=o=>Object.fromEntries(Object.entries(o||{}).map(([k,v])=>[k,Array.from(v)]));
+              const s=window.__RDR__,cv=o=>Object.fromEntries(Object.entries(o||{}).map(([k,v])=>[k,Array.from(v)]));
               return {
                 frames:s.frames.map(f=>({key:f.key,time:new Date(f.time).toISOString(),views:cv(f.views)})),
                 severe:{
@@ -78,7 +77,8 @@ jobs:
           } finally { await browser.close(); }
           fs.writeFileSync('/tmp/rdr-qa/fixture.json',JSON.stringify(payload));
           JS
-          node /tmp/capture.mjs
+          node .qa-capture.mjs
+          rm -f .qa-capture.mjs
           cp index.html styles.css core.js radar.js context.js render.js broadcast.js app.js /tmp/rdr-qa/source/
           cp -R qa /tmp/rdr-qa/source/ 2>/dev/null || true
           du -h /tmp/rdr-qa/fixture.json
