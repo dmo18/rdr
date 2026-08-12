@@ -130,15 +130,22 @@ function centroid(frame,id='metro',threshold=20){
   }
   return count>8?{lat:slat/sw,lon:slon/sw,count}:null;
 }
-function deriveMotion(){
-  if(state.frames.length<2)return null;const a=state.frames.at(-2),b=state.frames.at(-1),ca=centroid(a),cb=centroid(b);if(!ca||!cb)return null;
-  const hours=(b.time-a.time)/3600000;if(hours<=0)return null;const miles=haversineMiles(ca,cb),mph=miles/hours;if(mph<2||mph>100)return null;
-  return{from:ca,to:cb,mph:Math.round(mph),bearing:bearing(ca,cb),dir:dir8(bearing(ca,cb))};
+function localCentroid(frame,center,radius=65,threshold=18){
+  if(!frame||!center)return null;const def=CFG.views.find(v=>v.id==='metro'),a=frame.views.metro;let sw=0,slat=0,slon=0,count=0;
+  for(let y=0;y<CFG.mapHeight;y+=2)for(let x=0;x<CFG.width;x+=2){const q=a[y*CFG.width+x];if(q===MISSING||q<threshold*10)continue;const p=pixelLatLon(x,y,def),dy=(p.lat-center.lat)*69,dx=(p.lon-center.lon)*62.3;if(dx*dx+dy*dy>radius*radius)continue;const w=Math.max(1,q/10-threshold+1);sw+=w;slat+=p.lat*w;slon+=p.lon*w;count++}
+  return count>5?{lat:slat/sw,lon:slon/sw,count}:null;
+}
+function deriveMotion(nearest=null){
+  if(state.frames.length<2)return null;const a=state.frames.at(-2),b=state.frames.at(-1);let ca=null,cb=null;
+  if(nearest){ca=localCentroid(a,nearest);cb=localCentroid(b,nearest)}
+  if(!ca||!cb){ca=centroid(a);cb=centroid(b)}if(!ca||!cb)return null;
+  const hours=(b.time-a.time)/3600000;if(hours<=0)return null;const miles=haversineMiles(ca,cb),mph=miles/hours;if(mph<2||mph>90)return null;const brg=bearing(ca,cb);
+  return{from:ca,to:cb,mph:Math.round(mph),bearing:brg,dir:dir8(brg)};
 }
 function deriveHome(){
   const f=state.frames.at(-1);if(!f)return;
-  const dbz=sampleHome(f),nearest=dbz<5?nearestRain(f):null,motion=deriveMotion();let eta=null;
-  if(motion){const target=bearing(motion.to,CFG.home),dist=haversineMiles(motion.to,CFG.home),mins=dist/motion.mph*60;if(angleDiff(motion.bearing,target)<45&&dist<150&&mins>0&&mins<180)eta={minutes:Math.round(mins),miles:dist}}
+  const dbz=sampleHome(f),nearest=dbz<5?nearestRain(f):null,motion=deriveMotion(nearest);let eta=null;
+  if(motion&&nearest){const toward=bearing(nearest,CFG.home),diff=angleDiff(motion.bearing,toward),closing=motion.mph*Math.cos(diff*Math.PI/180),mins=nearest.miles/Math.max(1,closing)*60;if(diff<55&&closing>3&&nearest.miles<150&&mins>0&&mins<180)eta={minutes:Math.round(mins),miles:nearest.miles}}
   state.motion=motion;state.home={dbz,status:classifyDbz(dbz),nearest,eta};
 }
 
@@ -148,7 +155,7 @@ async function pollRadar({initial=false}={}){
     const keys=await recentKeys(CFG.radarProduct,5),have=new Set(state.frames.map(f=>f.key)),newest=keys.at(-1);
     if(newest&&!have.has(newest)){
       const f=await loadFieldKey(newest,'radar');state.frames.push(f);state.frames.sort((a,b)=>a.time-b.time);state.frames=state.frames.slice(-5);state.cursor=state.frames.length-1;deriveHome();render();
-      if(initial){panel.dataset.ready='true';panel.dataset.radar='live';boot.classList.add('off')}
+      if(initial){panel.dataset.radar='live'}
     }
     state.lastListError=null;
     if(initial&&!verifyMode){
