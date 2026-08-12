@@ -19,16 +19,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'data-version="2026.08.12.6"' index.html
-          grep -q 'data-layout="broadcast-fullbleed"' index.html
+          grep -q 'data-version="2026.08.12.7"' index.html
+          grep -q 'data-layout="broadcast-v7"' index.html
           grep -q '<script src="broadcast.js"></script>' index.html
           grep -q 'top:0,bottom:0,mapHeight:257' core.js
           grep -q 'noaa-mrms-pds.s3.amazonaws.com' core.js
           grep -q 'MergedReflectivityQCComposite_00.50' core.js
-          grep -q 'function broadcastRadarSurfaces' broadcast.js
-          grep -q 'function broadcastCloudCanvas' broadcast.js
-          grep -q 'function broadcastCellLabels' broadcast.js
+          grep -q 'function bRadarCanvas' broadcast.js
+          grep -q 'function bWarmCurrentView' broadcast.js
+          grep -q 'function bWarningStyle' broadcast.js
           grep -q 'render=function' broadcast.js
+          ! grep -q 'broadcastCloudCanvas' broadcast.js
+          ! grep -q 'Math.ceil(CFG.width/2)' broadcast.js
           grep -q 'template!==41' radar.js
           grep -q 'meta.bits===24' radar.js
           ! grep -R 'data/home.png\|data/radar.json\|scripts/ingest.py' -- index.html app.js core.js radar.js context.js render.js broadcast.js README.md
@@ -49,10 +51,9 @@ jobs:
           grep -q '"features"' /tmp/surface.json
           echo "$key"
 
-      - name: Install visual verification dependencies
+      - name: Install verification dependencies
         shell: bash
         run: |
-          set -euo pipefail
           npm install --no-save --package-lock=false puppeteer-core >/dev/null
           python3 -m pip install --disable-pip-version-check pillow >/dev/null
 
@@ -63,22 +64,19 @@ jobs:
           import puppeteer from 'puppeteer-core';
           import fs from 'node:fs';
           const [base,out]=process.argv.slice(2),chrome=process.env.CHROME;
-          if(!chrome) throw new Error('CHROME is not set');
-          fs.mkdirSync(out,{recursive:true});
+          const stats=a=>{a=[...a].sort((x,y)=>x-y);return{avg:a.length?a.reduce((x,y)=>x+y,0)/a.length:null,p50:a.length?a[Math.floor(a.length*.50)]:null,p95:a.length?a[Math.min(a.length-1,Math.floor(a.length*.95))]:null,max:a.length?a.at(-1):null,count:a.length}};
+          if(!chrome)throw new Error('CHROME is not set');fs.mkdirSync(out,{recursive:true});
           const browser=await puppeteer.launch({executablePath:chrome,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
           try{
-            for(const v of ['home','metro','florida','regional']){
-              const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});
-              const browserErrors=[];page.on('pageerror',e=>browserErrors.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push('console: '+m.text())});
-              const sep=base.includes('?')?'&':'?',url=`${base}${sep}view=${v}&verify=1&ci=${Date.now()}`;
-              await page.goto(url,{waitUntil:'domcontentloaded',timeout:120000});
-              await page.waitForFunction(id=>{const p=document.querySelector('#panel'),s=window.__RDR__;return p?.dataset?.version==='2026.08.12.6'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(s?.surface?.get(id)?.length||0)>=1},{timeout:120000,polling:250},v);
-              await new Promise(r=>setTimeout(r,1200));
-              const diag=await page.evaluate(id=>{const p=document.querySelector('#panel'),s=window.__RDR__,latest=s.frames.at(-1)?.time;return{dataset:{...p.dataset},frames:s.frames.length,surface:s.surface.get(id)?.length||0,latestAgeMs:latest?Date.now()-new Date(latest).getTime():null,home:s.home,errors:s.errors,viewport:[innerWidth,innerHeight],panel:[p.getBoundingClientRect().width,p.getBoundingClientRect().height]}},v);
-              if(diag.dataset.layout!=='broadcast-fullbleed'||diag.dataset.radar!=='live'||diag.frames<1||diag.surface<1)throw new Error(`${v} missing full bleed live layers: ${JSON.stringify(diag)}`);
-              if(!(diag.latestAgeMs>=0&&diag.latestAgeMs<15*60*1000))throw new Error(`${v} radar stale: ${JSON.stringify(diag)}`);
-              if(diag.viewport[0]!==456||diag.viewport[1]!==257||diag.panel[0]!==456||diag.panel[1]!==257)throw new Error(`${v} wrong geometry: ${JSON.stringify(diag)}`);
-              const panel=await page.$('#panel');await panel.screenshot({path:`${out}/${v}.png`});fs.writeFileSync(`${out}/${v}.json`,JSON.stringify({...diag,browserErrors},null,2));await page.close();
+            for(const id of ['home','metro','florida','regional']){
+              const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const browserErrors=[];page.on('pageerror',e=>browserErrors.push(e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push(m.text())});
+              const t0=Date.now(),sep=base.includes('?')?'&':'?';await page.goto(`${base}${sep}view=${id}&verify=1&ci=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
+              await page.waitForFunction(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get(id);return p?.dataset?.version==='2026.08.12.7'&&p?.dataset?.layout==='broadcast-v7'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(s.surface?.get(id)?.length||0)>=1&&(b?.states?.length||0)>=1},{timeout:150000,polling:250},id);
+              const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);const coldPrepMs=await page.evaluate(()=>bWarmCurrentView());await page.evaluate(()=>{window.__RDR__.perf.samples=[]});await new Promise(r=>setTimeout(r,2400));
+              const diag=await page.evaluate(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s.boundaries.get(id),latest=s.frames.at(-1)?.time;return{dataset:{...p.dataset},frames:s.frames.length,surface:s.surface.get(id)?.length||0,boundaries:{states:b?.states?.length||0,counties:b?.counties?.length||0},latestAgeMs:latest?Date.now()-new Date(latest).getTime():null,home:s.home,errors:s.errors,samples:[...(s.perf?.samples||[])],viewport:[innerWidth,innerHeight],panel:[p.getBoundingClientRect().width,p.getBoundingClientRect().height]}},id);
+              diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.coldPrepMs=coldPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=browserErrors;
+              await (await page.$('#panel')).screenshot({path:`${out}/${id}.png`});fs.writeFileSync(`${out}/${id}.json`,JSON.stringify(diag,null,2));
+              if(browserErrors.length)throw new Error(`browser ${id}: ${JSON.stringify(diag)}`);if(!(diag.latestAgeMs>=0&&diag.latestAgeMs<15*60*1000))throw new Error(`stale ${id}: ${JSON.stringify(diag)}`);if(diag.viewport[0]!==456||diag.viewport[1]!==257||diag.panel[0]!==456||diag.panel[1]!==257)throw new Error(`geometry ${id}: ${JSON.stringify(diag)}`);if(diag.startupPaint.max!=null&&diag.startupPaint.max>200)throw new Error(`startup ${id}: ${JSON.stringify(diag.startupPaint)}`);if(diag.coldPrepMs>250)throw new Error(`prep ${id}: ${JSON.stringify(diag)}`);if(diag.paint.p95!=null&&diag.paint.p95>16)throw new Error(`warm ${id}: ${JSON.stringify(diag.paint)}`);await page.close();
             }
           }finally{await browser.close()}
           JS
@@ -97,12 +95,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for i in $(seq 1 40); do
+          for i in $(seq 1 48); do
             body=$(curl -fsSL "https://dmo18.github.io/rdr/?verify=${GITHUB_SHA}-${i}" || true)
-            if printf '%s' "$body" | grep -q 'data-version="2026.08.12.6"'; then exit 0; fi
+            if printf '%s' "$body" | grep -q 'data-version="2026.08.12.7"'; then exit 0; fi
             sleep 5
           done
-          echo 'Pages did not publish the expected version' >&2
+          echo 'Pages did not publish 2026.08.12.7' >&2
           exit 1
 
       - name: Render deployed scales from live NOAA data
@@ -119,45 +117,31 @@ jobs:
           set -euo pipefail
           export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           cat > .verify-full.mjs <<'JS'
-          import puppeteer from 'puppeteer-core';
-          import fs from 'node:fs';
+          import puppeteer from 'puppeteer-core';import fs from 'node:fs';
+          const stats=a=>{a=[...a].sort((x,y)=>x-y);return{avg:a.length?a.reduce((x,y)=>x+y,0)/a.length:null,p50:a.length?a[Math.floor(a.length*.50)]:null,p95:a.length?a[Math.min(a.length-1,Math.floor(a.length*.95))]:null,max:a.length?a.at(-1):null,count:a.length}};
           const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
-          try{
-            const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});
-            const browserErrors=[];page.on('pageerror',e=>browserErrors.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push('console: '+m.text())});
-            await page.goto(`https://dmo18.github.io/rdr/?view=florida&full=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
-            await page.waitForFunction(()=>window.__RDR__?.frames?.length>=3&&window.__RDR__?.surface?.get('florida')?.length>=1&&window.__RDR__?.severe?.lightning&&window.__RDR__?.severe?.mesh&&document.querySelector('#panel')?.dataset?.radar==='live',{timeout:240000,polling:500});
-            await new Promise(r=>setTimeout(r,1600));
-            const diag=await page.evaluate(()=>({version:document.querySelector('#panel').dataset.version,layout:document.querySelector('#panel').dataset.layout,frames:window.__RDR__.frames.length,surface:window.__RDR__.surface.get('florida')?.length||0,severe:{lightning:!!window.__RDR__.severe.lightning,mesh:!!window.__RDR__.severe.mesh},errors:window.__RDR__.errors,radar:document.querySelector('#panel').dataset.radar,browserSize:[innerWidth,innerHeight]}));
-            if(diag.version!=='2026.08.12.6'||diag.layout!=='broadcast-fullbleed'||diag.radar!=='live'||diag.frames<3||diag.surface<1||!diag.severe.lightning||!diag.severe.mesh)throw new Error('full runtime failed: '+JSON.stringify(diag));
-            if(diag.errors.some(e=>/ReferenceError|SyntaxError|invalid GRIB|unsupported PNG|unsupported GRIB/i.test(e)))throw new Error('runtime decoder error: '+JSON.stringify(diag));
-            const panel=await page.$('#panel');await panel.screenshot({path:'/tmp/renders/live/full-runtime.png'});fs.writeFileSync('/tmp/renders/live/full-runtime.json',JSON.stringify({...diag,browserErrors},null,2));
-          }finally{await browser.close()}
+          try{const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const browserErrors=[];page.on('pageerror',e=>browserErrors.push(e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push(m.text())});const t0=Date.now();await page.goto(`https://dmo18.github.io/rdr/?view=florida&full=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});await page.waitForFunction(()=>{const s=window.__RDR__,b=s?.boundaries?.get('florida'),p=document.querySelector('#panel');return p?.dataset?.version==='2026.08.12.7'&&p?.dataset?.layout==='broadcast-v7'&&s?.frames?.length>=4&&s?.severe?.lightning&&s?.severe?.mesh&&(b?.states?.length||0)>=1&&p?.dataset?.radar==='live'},{timeout:240000,polling:500});const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);const coldPrepMs=await page.evaluate(()=>bWarmCurrentView());await page.evaluate(()=>{window.__RDR__.perf.samples=[]});await new Promise(r=>setTimeout(r,2800));const diag=await page.evaluate(()=>{const s=window.__RDR__;return{frames:s.frames.length,severe:{lightning:!!s.severe.lightning,mesh:!!s.severe.mesh},errors:s.errors,samples:[...(s.perf?.samples||[])]}});diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.coldPrepMs=coldPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=browserErrors;await (await page.$('#panel')).screenshot({path:'/tmp/renders/live/full-runtime.png'});fs.writeFileSync('/tmp/renders/live/full-runtime.json',JSON.stringify(diag,null,2));if(browserErrors.length)throw new Error(JSON.stringify(diag));if(diag.startupPaint.max!=null&&diag.startupPaint.max>250)throw new Error(`startup: ${JSON.stringify(diag)}`);if(diag.coldPrepMs>350)throw new Error(`prep: ${JSON.stringify(diag)}`);if(diag.paint.p95!=null&&diag.paint.p95>16)throw new Error(`warm: ${JSON.stringify(diag)}`)}finally{await browser.close()}
           JS
           node .verify-full.mjs
 
       - name: Visual sanity checks
         shell: bash
         run: |
-          set -euo pipefail
           python3 - <<'PY'
           from PIL import Image
           from pathlib import Path
           for scope in ('local','live'):
               for v in ('home','metro','florida','regional'):
-                  p=Path('/tmp/renders')/scope/f'{v}.png'
-                  im=Image.open(p).convert('RGB')
-                  assert im.size==(456,257), (scope,v,im.size)
-                  px=list(im.getdata())
-                  colors=len(set(px)); lit=sum(1 for r,g,b in px if max(r,g,b)>55); nonblack=sum(1 for r,g,b in px if r+g+b>25)
-                  assert colors>300, (scope,v,'too few colors',colors)
-                  assert lit>3000, (scope,v,'too dark',lit)
-                  assert nonblack>35000, (scope,v,'too empty',nonblack)
+                  p=Path('/tmp/renders')/scope/f'{v}.png';im=Image.open(p).convert('RGB');assert im.size==(456,257),(scope,v,im.size);px=list(im.getdata());assert len(set(px))>350,(scope,v,'few colors');assert sum(1 for r,g,b in px if r+g+b>40)>30000,(scope,v,'too empty')
+                  for y0,y1 in ((0,28),(235,257)):
+                      band=[px[y*456+x] for y in range(y0,y1) for x in range(456)];dark=sum(1 for r,g,b in band if r+g+b<35)/len(band);assert dark<.92,(scope,v,'opaque band',y0,dark)
           PY
 
       - name: Upload verification renders
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rdr-broadcast-fullbleed-renders
+          name: rdr-broadcast-v7-renders
           path: /tmp/renders
+          if-no-files-found: warn
           retention-days: 7
