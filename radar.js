@@ -23,7 +23,8 @@ function parseGrib(ab){
     ref:new Date(Date.UTC(d.getUint16(a.o+12,false),d.getUint8(a.o+14)-1,d.getUint8(a.o+15),d.getUint8(a.o+16),d.getUint8(a.o+17),d.getUint8(a.o+18))),
     png,width:pd.getUint32(16,false),height:pd.getUint32(20,false),bitDepth:png[24],colorType:png[25],interlace:png[28]
   };
-  if(meta.colorType!==0||meta.interlace!==0||![8,16].includes(meta.bitDepth))throw new Error(`unsupported PNG ${meta.bitDepth}/${meta.colorType}/${meta.interlace}`);
+  const pngPacking=(meta.colorType===0&&meta.bitDepth===meta.bits&&[8,16].includes(meta.bits))||(meta.colorType===2&&meta.bitDepth===8&&meta.bits===24)||(meta.colorType===6&&meta.bitDepth===8&&meta.bits===32);
+  if(meta.interlace!==0||!pngPacking)throw new Error(`unsupported PNG ${meta.bitDepth}/${meta.colorType}/${meta.interlace} for ${meta.bits}-bit GRIB`);
   if(meta.width!==meta.nx||meta.height!==meta.ny)throw new Error('grid PNG mismatch');
   return meta;
 }
@@ -64,9 +65,14 @@ async function decodePngToViews(meta,kind='radar'){
   }
   const total=chunks.reduce((a,b)=>a+b.length,0),packed=new Uint8Array(total);let at=0;
   for(const c of chunks){packed.set(c,at);at+=c.length}
-  const raw=new Uint8Array(await inflate(packed,'deflate')),bpp=meta.bitDepth/8,stride=meta.nx*bpp;
+  const raw=new Uint8Array(await inflate(packed,'deflate')),bpp=meta.bits===24?3:meta.bits===32?4:meta.bitDepth/8,stride=meta.nx*bpp;
   const row=new Uint8Array(stride),prev=new Uint8Array(stride),samplers=makeSamplers(meta);let pos=0;
-  const readBuf=(buf,i)=>meta.bitDepth===16?((buf[i*2]<<8)|buf[i*2+1]):buf[i];
+  const readBuf=(buf,i)=>{
+    if(meta.bits===16)return(buf[i*2]<<8)|buf[i*2+1];
+    if(meta.bits===24){const o=i*3;return buf[o]*65536+buf[o+1]*256+buf[o+2]}
+    if(meta.bits===32){const o=i*4;return buf[o]*16777216+buf[o+1]*65536+buf[o+2]*256+buf[o+3]}
+    return buf[i];
+  };
   for(let sy=0;sy<meta.ny;sy++){
     const filter=raw[pos++];
     for(let i=0;i<stride;i++){
