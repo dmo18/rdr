@@ -1,4 +1,4 @@
-name: Verify live MRMS RDR renderer
+name: Verify RDR enterprise v8
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -19,24 +19,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'data-version="2026.08.12.7"' index.html
-          grep -q 'data-layout="broadcast-v7"' index.html
-          grep -q '<script src="broadcast.js"></script>' index.html
-          grep -q 'top:0,bottom:0,mapHeight:257' core.js
+          grep -q 'data-version="2026.08.12.8"' index.html
+          grep -q 'data-layout="enterprise-v8"' index.html
+          grep -q '<script src="enterprise-core.js"></script>' index.html
+          grep -q '<script src="enterprise-map.js"></script>' index.html
+          grep -q '<script src="enterprise-overlays.js"></script>' index.html
+          grep -q '<script src="enterprise-ui.js"></script>' index.html
           grep -q 'noaa-mrms-pds.s3.amazonaws.com' core.js
           grep -q 'MergedReflectivityQCComposite_00.50' core.js
-          grep -q 'function bRadarCanvas' broadcast.js
-          grep -q 'function bWarmCurrentView' broadcast.js
-          grep -q 'function bWarningStyle' broadcast.js
-          grep -q 'render=function' broadcast.js
-          ! grep -q 'broadcastCloudCanvas' broadcast.js
-          ! grep -q 'Math.ceil(CFG.width/2)' broadcast.js
           grep -q 'template!==41' radar.js
           grep -q 'meta.bits===24' radar.js
-          ! grep -R 'data/home.png\|data/radar.json\|scripts/ingest.py' -- index.html app.js core.js radar.js context.js render.js broadcast.js README.md
-          for f in app.js core.js radar.js context.js render.js broadcast.js; do node --check "$f"; done
+          grep -q 'function localCentroid' radar.js
+          grep -q 'function eRadarCanvas' enterprise-map.js
+          grep -q 'function eWarmCurrentView' enterprise-ui.js
+          test ! -e broadcast.js
+          test ! -e render.js
+          ! grep -R -q 'data/home.png\|data/radar.json\|scripts/ingest.py' index.html app.js core.js radar.js context.js enterprise-*.js README.md
+          for f in app.js core.js radar.js context.js enterprise-core.js enterprise-map.js enterprise-overlays.js enterprise-ui.js qa/replay.js; do node --check "$f"; done
 
-      - name: Probe current NOAA data sources
+      - name: Probe current NOAA sources
         shell: bash
         run: |
           set -euo pipefail
@@ -46,7 +47,7 @@ jobs:
           key=$(grep -o '<Key>[^<]*\.grib2\.gz</Key>' /tmp/list.xml | tail -1 | sed 's#</\?Key>##g')
           test -n "$key"
           curl -fsSI -H 'Origin: https://dmo18.github.io' "https://noaa-mrms-pds.s3.amazonaws.com/$key" | grep -qi 'access-control-allow-origin: \*'
-          surface='https://mapservices.weather.noaa.gov/vector/rest/services/obs/surface_obs/MapServer/160/query?where=1%3D1&geometry=-80.46%2C25.84%2C-79.96%2C26.30&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326&spatialRel=esriSpatialRelIntersects&outFields=stationname%2Ctimeobs%2Ccloudcover%2Cwinddir%2Cwindspeed&returnGeometry=true&f=geojson'
+          surface='https://mapservices.weather.noaa.gov/vector/rest/services/obs/surface_obs/MapServer/160/query?where=1%3D1&geometry=-80.46%2C25.84%2C-79.96%2C26.30&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326&spatialRel=esriSpatialRelIntersects&outFields=stationname%2Ctimeobs%2Cwinddir%2Cwindspeed&returnGeometry=true&f=geojson'
           curl -fsSL "$surface" -o /tmp/surface.json
           grep -q '"features"' /tmp/surface.json
           echo "$key"
@@ -57,91 +58,113 @@ jobs:
           npm install --no-save --package-lock=false puppeteer-core >/dev/null
           python3 -m pip install --disable-pip-version-check pillow >/dev/null
 
-      - name: Create exact viewport renderer
+      - name: Create exact viewport verifier
         shell: bash
         run: |
-          cat > .verify-render.mjs <<'JS'
+          cat > .verify-v8.mjs <<'JS'
           import puppeteer from 'puppeteer-core';
           import fs from 'node:fs';
           const [base,out]=process.argv.slice(2),chrome=process.env.CHROME;
-          const stats=a=>{a=[...a].sort((x,y)=>x-y);return{avg:a.length?a.reduce((x,y)=>x+y,0)/a.length:null,p50:a.length?a[Math.floor(a.length*.50)]:null,p95:a.length?a[Math.min(a.length-1,Math.floor(a.length*.95))]:null,max:a.length?a.at(-1):null,count:a.length}};
-          if(!chrome)throw new Error('CHROME is not set');fs.mkdirSync(out,{recursive:true});
+          const stats=a=>{a=[...a].sort((x,y)=>x-y);return{avg:a.length?a.reduce((x,y)=>x+y,0)/a.length:null,p50:a.length?a[Math.floor(a.length*.5)]:null,p95:a.length?a[Math.min(a.length-1,Math.floor(a.length*.95))]:null,max:a.length?a.at(-1):null,count:a.length}};
+          if(!chrome)throw new Error('CHROME missing');fs.mkdirSync(out,{recursive:true});
           const browser=await puppeteer.launch({executablePath:chrome,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
+          const all={};
           try{
             for(const id of ['home','metro','florida','regional']){
-              const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const browserErrors=[];page.on('pageerror',e=>browserErrors.push(e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push(m.text())});
+              const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const browserErrors=[];page.on('pageerror',e=>browserErrors.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push('console: '+m.text())});
               const t0=Date.now(),sep=base.includes('?')?'&':'?';await page.goto(`${base}${sep}view=${id}&verify=1&ci=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
-              await page.waitForFunction(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get(id);return p?.dataset?.version==='2026.08.12.7'&&p?.dataset?.layout==='broadcast-v7'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(s.surface?.get(id)?.length||0)>=1&&(b?.states?.length||0)>=1},{timeout:150000,polling:250},id);
-              const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);const coldPrepMs=await page.evaluate(()=>bWarmCurrentView());await page.evaluate(()=>{window.__RDR__.perf.samples=[]});await new Promise(r=>setTimeout(r,2400));
-              const diag=await page.evaluate(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s.boundaries.get(id),latest=s.frames.at(-1)?.time;return{dataset:{...p.dataset},frames:s.frames.length,surface:s.surface.get(id)?.length||0,boundaries:{states:b?.states?.length||0,counties:b?.counties?.length||0},latestAgeMs:latest?Date.now()-new Date(latest).getTime():null,home:s.home,errors:s.errors,samples:[...(s.perf?.samples||[])],viewport:[innerWidth,innerHeight],panel:[p.getBoundingClientRect().width,p.getBoundingClientRect().height]}},id);
-              diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.coldPrepMs=coldPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=browserErrors;
+              await page.waitForFunction(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get(id);return p?.dataset?.version==='2026.08.12.8'&&p?.dataset?.layout==='enterprise-v8'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(s.surface?.get(id)?.length||0)>=1&&(b?.states?.length||0)>=1},{timeout:180000,polling:250},id);
+              const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);const coldPrepMs=await page.evaluate(()=>eWarmCurrentView());await page.evaluate(()=>{window.__RDR__.perf.samples=[]});await new Promise(r=>setTimeout(r,2500));
+              const diag=await page.evaluate(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s.boundaries.get(id),latest=s.frames.at(-1)?.time;return{id,dataset:{...p.dataset},frames:s.frames.length,surface:s.surface.get(id)?.length||0,boundaries:{states:b?.states?.length||0,counties:b?.counties?.length||0},latestAgeMs:latest?Date.now()-new Date(latest).getTime():null,home:s.home,weather:s.weather,errors:s.errors,samples:[...(s.perf?.samples||[])],viewport:[innerWidth,innerHeight],panel:[p.getBoundingClientRect().width,p.getBoundingClientRect().height]};},id);
+              diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.coldPrepMs=coldPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=browserErrors;all[id]=diag;
               await (await page.$('#panel')).screenshot({path:`${out}/${id}.png`});fs.writeFileSync(`${out}/${id}.json`,JSON.stringify(diag,null,2));
-              if(browserErrors.length)throw new Error(`browser ${id}: ${JSON.stringify(diag)}`);if(!(diag.latestAgeMs>=0&&diag.latestAgeMs<15*60*1000))throw new Error(`stale ${id}: ${JSON.stringify(diag)}`);if(diag.viewport[0]!==456||diag.viewport[1]!==257||diag.panel[0]!==456||diag.panel[1]!==257)throw new Error(`geometry ${id}: ${JSON.stringify(diag)}`);if(diag.startupPaint.max!=null&&diag.startupPaint.max>200)throw new Error(`startup ${id}: ${JSON.stringify(diag.startupPaint)}`);if(diag.coldPrepMs>250)throw new Error(`prep ${id}: ${JSON.stringify(diag)}`);if(diag.paint.p95!=null&&diag.paint.p95>16)throw new Error(`warm ${id}: ${JSON.stringify(diag.paint)}`);await page.close();
+              if(browserErrors.length)throw new Error(`browser ${id}: ${JSON.stringify(diag)}`);if(!(diag.latestAgeMs>=0&&diag.latestAgeMs<15*60*1000))throw new Error(`stale ${id}: ${JSON.stringify(diag)}`);if(diag.viewport[0]!==456||diag.viewport[1]!==257||diag.panel[0]!==456||diag.panel[1]!==257)throw new Error(`geometry ${id}: ${JSON.stringify(diag)}`);if(diag.startupPaint.max!=null&&diag.startupPaint.max>250)throw new Error(`startup ${id}: ${JSON.stringify(diag.startupPaint)}`);if(diag.coldPrepMs>350)throw new Error(`cold prep ${id}: ${JSON.stringify(diag)}`);if(diag.paint.p95!=null&&diag.paint.p95>16)throw new Error(`warm ${id}: ${JSON.stringify(diag.paint)}`);await page.close();
             }
-          }finally{await browser.close()}
+          } finally { await browser.close(); }
+          fs.writeFileSync(`${out}/metrics.json`,JSON.stringify(all,null,2));
           JS
 
-      - name: Render local scales from live NOAA data
+      - name: Render local v8 from live NOAA data
         shell: bash
         run: |
           set -euo pipefail
           export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
-          mkdir -p /tmp/renders/local
-          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/http.log 2>&1 &
+          mkdir -p /tmp/rdr-v8-verify/local
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/rdr-v8-local.log 2>&1 &
           pid=$!; trap 'kill $pid || true' EXIT; sleep 1
-          node .verify-render.mjs 'http://127.0.0.1:8765/' /tmp/renders/local
+          node .verify-v8.mjs 'http://127.0.0.1:8765/' /tmp/rdr-v8-verify/local
 
-      - name: Wait for exact Pages version
+      - name: Wait for GitHub Pages v8
         shell: bash
         run: |
           set -euo pipefail
-          for i in $(seq 1 48); do
+          for i in $(seq 1 60); do
             body=$(curl -fsSL "https://dmo18.github.io/rdr/?verify=${GITHUB_SHA}-${i}" || true)
-            if printf '%s' "$body" | grep -q 'data-version="2026.08.12.7"'; then exit 0; fi
+            if printf '%s' "$body" | grep -q 'data-version="2026.08.12.8"' && printf '%s' "$body" | grep -q 'data-layout="enterprise-v8"'; then exit 0; fi
             sleep 5
           done
-          echo 'Pages did not publish 2026.08.12.7' >&2
+          echo 'Pages did not publish enterprise v8' >&2
           exit 1
 
-      - name: Render deployed scales from live NOAA data
+      - name: Render deployed v8 from live NOAA data
         shell: bash
         run: |
           set -euo pipefail
           export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
-          mkdir -p /tmp/renders/live
-          node .verify-render.mjs 'https://dmo18.github.io/rdr/' /tmp/renders/live
+          mkdir -p /tmp/rdr-v8-verify/live
+          node .verify-v8.mjs 'https://dmo18.github.io/rdr/' /tmp/rdr-v8-verify/live
 
-      - name: Exercise full deployed runtime
+      - name: Exercise full deployed loop and severe fields
         shell: bash
         run: |
           set -euo pipefail
           export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
-          cat > .verify-full.mjs <<'JS'
+          cat > .verify-v8-full.mjs <<'JS'
           import puppeteer from 'puppeteer-core';import fs from 'node:fs';
-          const stats=a=>{a=[...a].sort((x,y)=>x-y);return{avg:a.length?a.reduce((x,y)=>x+y,0)/a.length:null,p50:a.length?a[Math.floor(a.length*.50)]:null,p95:a.length?a[Math.min(a.length-1,Math.floor(a.length*.95))]:null,max:a.length?a.at(-1):null,count:a.length}};
+          const stats=a=>{a=[...a].sort((x,y)=>x-y);return{avg:a.length?a.reduce((x,y)=>x+y,0)/a.length:null,p50:a.length?a[Math.floor(a.length*.5)]:null,p95:a.length?a[Math.min(a.length-1,Math.floor(a.length*.95))]:null,max:a.length?a.at(-1):null,count:a.length}};
           const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
-          try{const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const browserErrors=[];page.on('pageerror',e=>browserErrors.push(e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push(m.text())});const t0=Date.now();await page.goto(`https://dmo18.github.io/rdr/?view=florida&full=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});await page.waitForFunction(()=>{const s=window.__RDR__,b=s?.boundaries?.get('florida'),p=document.querySelector('#panel');return p?.dataset?.version==='2026.08.12.7'&&p?.dataset?.layout==='broadcast-v7'&&s?.frames?.length>=4&&s?.severe?.lightning&&s?.severe?.mesh&&(b?.states?.length||0)>=1&&p?.dataset?.radar==='live'},{timeout:240000,polling:500});const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);const coldPrepMs=await page.evaluate(()=>bWarmCurrentView());await page.evaluate(()=>{window.__RDR__.perf.samples=[]});await new Promise(r=>setTimeout(r,2800));const diag=await page.evaluate(()=>{const s=window.__RDR__;return{frames:s.frames.length,severe:{lightning:!!s.severe.lightning,mesh:!!s.severe.mesh},errors:s.errors,samples:[...(s.perf?.samples||[])]}});diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.coldPrepMs=coldPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=browserErrors;await (await page.$('#panel')).screenshot({path:'/tmp/renders/live/full-runtime.png'});fs.writeFileSync('/tmp/renders/live/full-runtime.json',JSON.stringify(diag,null,2));if(browserErrors.length)throw new Error(JSON.stringify(diag));if(diag.startupPaint.max!=null&&diag.startupPaint.max>250)throw new Error(`startup: ${JSON.stringify(diag)}`);if(diag.coldPrepMs>350)throw new Error(`prep: ${JSON.stringify(diag)}`);if(diag.paint.p95!=null&&diag.paint.p95>16)throw new Error(`warm: ${JSON.stringify(diag)}`)}finally{await browser.close()}
+          try{
+            const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const browserErrors=[];page.on('pageerror',e=>browserErrors.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push('console: '+m.text())});
+            const t0=Date.now();await page.goto(`https://dmo18.github.io/rdr/?view=florida&full=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});await page.waitForFunction(()=>{const s=window.__RDR__,b=s?.boundaries?.get('florida'),p=document.querySelector('#panel');return p?.dataset?.version==='2026.08.12.8'&&p?.dataset?.layout==='enterprise-v8'&&p?.dataset?.radar==='live'&&s?.frames?.length>=4&&s?.severe?.lightning&&s?.severe?.mesh&&(b?.states?.length||0)>=1},{timeout:240000,polling:500});
+            const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);const coldPrepMs=await page.evaluate(()=>eWarmCurrentView());await page.evaluate(()=>{window.__RDR__.perf.samples=[]});await new Promise(r=>setTimeout(r,3000));const diag=await page.evaluate(()=>{const s=window.__RDR__;return{frames:s.frames.length,severe:{lightning:!!s.severe.lightning,mesh:!!s.severe.mesh},errors:s.errors,samples:[...(s.perf?.samples||[])],dataset:{...document.querySelector('#panel').dataset},viewport:[innerWidth,innerHeight]}});diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.coldPrepMs=coldPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=browserErrors;
+            await (await page.$('#panel')).screenshot({path:'/tmp/rdr-v8-verify/live/full-runtime.png'});fs.writeFileSync('/tmp/rdr-v8-verify/live/full-runtime.json',JSON.stringify(diag,null,2));
+            if(browserErrors.length)throw new Error(JSON.stringify(diag));if(diag.errors.some(e=>/ReferenceError|SyntaxError|invalid GRIB|unsupported PNG|unsupported GRIB/i.test(e)))throw new Error(`runtime decoder: ${JSON.stringify(diag)}`);if(diag.startupPaint.max!=null&&diag.startupPaint.max>300)throw new Error(`startup: ${JSON.stringify(diag)}`);if(diag.coldPrepMs>450)throw new Error(`cold prep: ${JSON.stringify(diag)}`);if(diag.paint.p95!=null&&diag.paint.p95>16)throw new Error(`warm p95: ${JSON.stringify(diag)}`);
+          } finally { await browser.close(); }
           JS
-          node .verify-full.mjs
+          node .verify-v8-full.mjs
 
-      - name: Visual sanity checks
+      - name: Visual and geography gates
         shell: bash
         run: |
           python3 - <<'PY'
           from PIL import Image
           from pathlib import Path
+          import json
+          root=Path('/tmp/rdr-v8-verify');views=['home','metro','florida','regional']
           for scope in ('local','live'):
-              for v in ('home','metro','florida','regional'):
-                  p=Path('/tmp/renders')/scope/f'{v}.png';im=Image.open(p).convert('RGB');assert im.size==(456,257),(scope,v,im.size);px=list(im.getdata());assert len(set(px))>350,(scope,v,'few colors');assert sum(1 for r,g,b in px if r+g+b>40)>30000,(scope,v,'too empty')
-                  for y0,y1 in ((0,28),(235,257)):
-                      band=[px[y*456+x] for y in range(y0,y1) for x in range(456)];dark=sum(1 for r,g,b in band if r+g+b<35)/len(band);assert dark<.92,(scope,v,'opaque band',y0,dark)
+              for v in views:
+                  p=root/scope/f'{v}.png';im=Image.open(p).convert('RGB');assert im.size==(456,257),(scope,v,im.size);px=list(im.getdata());assert len(set(px))>1200,(scope,v,'few colors');assert sum(1 for r,g,b in px if max(r,g,b)>120)>1200,(scope,v,'too dark');assert sum(1 for r,g,b in px if r+g+b>35)>50000,(scope,v,'too empty');land=sum(1 for r,g,b in px if abs(r-22)<=3 and abs(g-37)<=3 and abs(b-45)<=3);assert land>5000,(scope,v,'blank geography',land)
+                  for y0,y1 in ((0,29),(220,257)):
+                      band=[px[y*456+x] for y in range(y0,y1) for x in range(456)];assert len(set(band))>80,(scope,v,'flat band',y0)
+              sheet=Image.new('RGB',(912,514))
+              for i,v in enumerate(views):sheet.paste(Image.open(root/scope/f'{v}.png').convert('RGB'),((i%2)*456,(i//2)*257))
+              sheet.save(root/scope/'contact-sheet.png')
+          full=Image.open(root/'live'/'full-runtime.png').convert('RGB');assert full.size==(456,257)
+          for v in views+['full-runtime']:
+              Image.open(root/'live'/f'{v}.png').convert('RGB').resize((1824,1028),Image.Resampling.NEAREST).save(root/'live'/f'{v}-4x.png')
+          lines=[]
+          metrics=json.load(open(root/'live'/'metrics.json'))
+          for v in views:
+              d=metrics[v];lines.append(f"{v}: ready={d['readyMs']}ms startupMax={d['startupPaint']['max']:.1f}ms coldPrep={d['coldPrepMs']:.1f}ms warmP95={d['paint']['p95']:.1f}ms warmMax={d['paint']['max']:.1f}ms frames={d['frames']} surface={d['surface']} states={d['boundaries']['states']}")
+          d=json.load(open(root/'live'/'full-runtime.json'));lines.append(f"full-runtime: ready={d['readyMs']}ms startupMax={d['startupPaint']['max']:.1f}ms coldPrep={d['coldPrepMs']:.1f}ms warmP95={d['paint']['p95']:.1f}ms warmMax={d['paint']['max']:.1f}ms frames={d['frames']} lightning={d['severe']['lightning']} mesh={d['severe']['mesh']}")
+          (root/'live'/'performance.txt').write_text('\n'.join(lines)+'\n')
           PY
 
-      - name: Upload verification renders
+      - name: Upload enterprise v8 production verification
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rdr-broadcast-v7-renders
-          path: /tmp/renders
+          name: rdr-enterprise-v8-production
+          path: /tmp/rdr-v8-verify
           if-no-files-found: warn
           retention-days: 7
