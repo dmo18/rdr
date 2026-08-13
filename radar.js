@@ -3,6 +3,7 @@
 const sm16=n=>(n&0x8000)?-(n&0x7fff):(n&0x7fff);
 const sm32=n=>(n&0x80000000)?-(n&0x7fffffff):(n&0x7fffffff);
 const paeth=(a,b,c)=>{const p=a+b-c,pa=Math.abs(p-a),pb=Math.abs(p-b),pc=Math.abs(p-c);return pa<=pb&&pa<=pc?a:pb<=pc?b:c};
+const radarYield=()=>new Promise(resolve=>setTimeout(resolve,0));
 
 function parseGrib(ab){
   const d=new DataView(ab),u=new Uint8Array(ab),u32=o=>d.getUint32(o,false),u16=o=>d.getUint16(o,false);
@@ -73,6 +74,7 @@ async function decodePngToViews(meta,kind='radar'){
     if(meta.bits===32){const o=i*4;return buf[o]*16777216+buf[o+1]*65536+buf[o+2]*256+buf[o+3]}
     return buf[i];
   };
+  const yieldEvery=state.runtime&&state.runtime.lowPower?48:192;
   for(let sy=0;sy<meta.ny;sy++){
     const filter=raw[pos++];
     for(let i=0;i<stride;i++){
@@ -93,6 +95,7 @@ async function decodePngToViews(meta,kind='radar'){
       }
     }
     prev.set(row);
+    if(sy>0&&sy%yieldEvery===0)await radarYield();
   }
   return Object.fromEntries(samplers.map(s=>[s.def.id,s.data]));
 }
@@ -158,7 +161,7 @@ async function backfillRadar(){
       if(state.frames.some(f=>f.key===key))continue;
       try{
         const f=await loadFieldKey(key,'radar');state.frames.push(f);state.frames.sort((a,b)=>a.time-b.time);state.frames=state.frames.slice(-5);state.cursor=state.frames.length-1;deriveHome();render();
-        await new Promise(resolve=>setTimeout(resolve,50));
+        await new Promise(resolve=>setTimeout(resolve,state.runtime&&state.runtime.lowPower?300:50));
       }catch(e){state.errors.push(`radar backfill: ${e}`)}
     }
   }finally{state.radarBackfilling=false}
@@ -174,8 +177,9 @@ async function pollRadar({initial=false}={}){
     }
     state.lastListError=null;
     if(initial&&!verifyMode){
-      state.pendingRadarKeys=keys.slice(0,-1).slice(-3).reverse().filter(key=>!state.frames.some(f=>f.key===key));
-      setTimeout(()=>backfillRadar().catch(e=>state.errors.push(String(e))),900);
+      const historyCount=state.runtime&&state.runtime.lowPower?2:3;
+      state.pendingRadarKeys=keys.slice(0,-1).slice(-historyCount).reverse().filter(key=>!state.frames.some(f=>f.key===key));
+      setTimeout(()=>backfillRadar().catch(e=>state.errors.push(String(e))),state.runtime&&state.runtime.lowPower?2200:900);
     }
   }catch(e){state.lastListError=e;state.errors.push(String(e));panel.dataset.radar=state.frames.length?'degraded':'unavailable';render()}
   finally{state.radarLoading=false;panel.dataset.freshness=freshness()}
@@ -186,7 +190,7 @@ function fieldMax(field,id=view().id){
 }
 async function loadSevere(){
   for(const [name,product] of Object.entries(CFG.severeProducts)){
-    try{const keys=await recentKeys(product,1),key=keys[keys.length-1];if(!key||state.severe[name]?.key===key)continue;state.severe[name]=await loadFieldKey(key,name)}
+    try{const keys=await recentKeys(product,1),key=keys[keys.length-1];if(!key||state.severe[name]?.key===key)continue;state.severe[name]=await loadFieldKey(key,name);await radarYield()}
     catch(e){state.errors.push(`${name}: ${e}`)}
   }
   render();
