@@ -4,18 +4,17 @@
  * Adaptive high-density renderer.
  *
  * RDR keeps a 456 x 257 logical coordinate system for the Yodeck target, but
- * the backing canvas tracks the final physical display size. This prevents a
- * 456 x 257 bitmap from being enlarged on laptops, TVs, tablets and phones.
- * Vector geography, text, alert polygons and the radar raster are rebuilt at
- * the active backing resolution while the UX geometry remains unchanged.
+ * the backing canvas tracks the final physical display size. Vector geography,
+ * text, alert polygons and the radar raster are rebuilt at the active backing
+ * resolution while the UX geometry remains unchanged.
  */
 
 const RDR_MAX_RENDER_SCALE=5;
 const RDR_RENDER_STEP=.25;
 
 function rdrPhysicalTarget(cssScale){
-  const dpr=Math.max(1,Number(window.devicePixelRatio)||1);
-  return Math.max(1,cssScale*dpr);
+  const dpr=Math.max(1,Number(window.devicePixelRatio)||1),base=Math.max(1,cssScale*dpr),floor=state.runtime&&state.runtime.lowPower?1.25:1;
+  return Math.max(floor,base);
 }
 function rdrQuantizedScale(target){
   return Math.min(RDR_MAX_RENDER_SCALE,Math.max(1,Math.ceil(target/RDR_RENDER_STEP)*RDR_RENDER_STEP));
@@ -51,18 +50,16 @@ fitPanel=function(){
   if(changed&&panel.dataset.ready==='true')requestAnimationFrame(()=>render(performance.now()));
 };
 
-// Rebuild vector layers at the backing resolution so coastlines, counties and
-// state lines are not bitmap-scaled on larger displays.
 eBase=function(def=view()){
-  const bd=state.boundaries.get(def.id),key=`${def.id}|${bd?.states?.length||0}|${bd?.counties?.length||0}|${rdrBackingKey()}|hidpi`;
+  const bd=state.boundaries.get(def.id),key=`${def.id}|${bd?.states?.length||0}|${bd?.counties?.length||0}|${rdrBackingKey()}|clarity2`;
   if(eBaseCache.has(key))return eBaseCache.get(key);
   const{c,x}=rdrLayerCanvas(false);
-  const ocean=x.createLinearGradient(0,E_MAP_TOP,0,E_MAP_BOTTOM);ocean.addColorStop(0,'#071922');ocean.addColorStop(1,'#04131b');x.fillStyle=ocean;x.fillRect(0,0,CFG.width,CFG.height);
-  const glow=x.createRadialGradient(CFG.width*.58,CFG.height*.44,10,CFG.width*.58,CFG.height*.44,CFG.width*.74);glow.addColorStop(0,'rgba(39,91,108,.075)');glow.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=glow;x.fillRect(0,0,CFG.width,CFG.height);
-  x.fillStyle='#16252d';for(const poly of E_LAND){x.beginPath();eTrace(x,def,poly,true);x.fill()}
-  for(const f of bd?.states||[])eGeometry(x,def,f.geometry,null,'#16252d');
+  const ocean=x.createLinearGradient(0,E_MAP_TOP,0,E_MAP_BOTTOM);ocean.addColorStop(0,'#071923');ocean.addColorStop(1,'#031018');x.fillStyle=ocean;x.fillRect(0,0,CFG.width,CFG.height);
+  const glow=x.createRadialGradient(CFG.width*.58,CFG.height*.44,10,CFG.width*.58,CFG.height*.44,CFG.width*.74);glow.addColorStop(0,'rgba(48,108,126,.10)');glow.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=glow;x.fillRect(0,0,CFG.width,CFG.height);
+  x.fillStyle='#21343d';for(const poly of E_LAND){x.beginPath();eTrace(x,def,poly,true);x.fill()}
+  for(const f of bd?.states||[])eGeometry(x,def,f.geometry,null,'#21343d');
   if(def.id==='regional'||def.id==='florida'){
-    const lonStep=def.id==='regional'?5:2,latStep=def.id==='regional'?4:2,[w,s,e,n]=def.bbox;x.save();x.strokeStyle='rgba(118,150,163,.08)';x.lineWidth=.45;
+    const lonStep=def.id==='regional'?5:2,latStep=def.id==='regional'?4:2,[w,s,e,n]=def.bbox;x.save();x.strokeStyle='rgba(142,177,190,.13)';x.lineWidth=.5;
     for(let lon=Math.ceil(w/lonStep)*lonStep;lon<e;lon+=lonStep){const a=ePoint(s,lon,def),b=ePoint(n,lon,def);x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke()}
     for(let lat=Math.ceil(s/latStep)*latStep;lat<n;lat+=latStep){const a=ePoint(lat,w,def),b=ePoint(lat,e,def);x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke()}x.restore();
   }
@@ -70,20 +67,23 @@ eBase=function(def=view()){
 };
 
 eLines=function(def=view()){
-  const bd=state.boundaries.get(def.id),key=`${def.id}|${bd?.states?.length||0}|${bd?.counties?.length||0}|${rdrBackingKey()}|hidpi`;
+  const bd=state.boundaries.get(def.id),key=`${def.id}|${bd?.states?.length||0}|${bd?.counties?.length||0}|${rdrBackingKey()}|clarity2`;
   if(eLineCache.has(key))return eLineCache.get(key);
-  const{c,x}=rdrLayerCanvas(true),countyA=def.id==='home'?.24:def.id==='metro'?.22:def.id==='florida'?.18:.10;
-  for(const f of bd?.counties||[])eGeometry(x,def,f.geometry,`rgba(137,165,176,${countyA})`,null,.48);
-  for(const f of bd?.states||[])eGeometry(x,def,f.geometry,'rgba(218,230,235,.72)',null,.9);
-  x.strokeStyle='rgba(211,226,232,.30)';x.lineWidth=.55;for(const poly of E_LAND){x.beginPath();eTrace(x,def,poly,true);x.stroke()}
+  const{c,x}=rdrLayerCanvas(true),countyA=def.id==='home'?.38:def.id==='metro'?.34:def.id==='florida'?.25:.16;
+  for(const f of bd?.counties||[])eGeometry(x,def,f.geometry,`rgba(166,193,202,${countyA})`,null,.58);
+  for(const f of bd?.states||[])eGeometry(x,def,f.geometry,'rgba(235,243,246,.86)',null,1.05);
+  x.strokeStyle='rgba(226,239,244,.48)';x.lineWidth=.68;for(const poly of E_LAND){x.beginPath();eTrace(x,def,poly,true);x.stroke()}
   eLineCache.set(key,c);while(eLineCache.size>12)eLineCache.delete(eLineCache.keys().next().value);return c;
 };
 
+function rdrSharpRadar(a){
+  const out=new Float32Array(a.length);for(let i=0;i<a.length;i++)out[i]=a[i]===MISSING?0:Math.max(0,a[i]);return out;
+}
 function rdrFilteredRadar(a){
   const sw=CFG.width,sh=CFG.height,n=sw*sh,out=new Float32Array(n);
   for(let y=0;y<sh;y++)for(let x=0;x<sw;x++){
     const i=y*sw+x,q=a[i]===MISSING?0:Math.max(0,a[i]);if(q>=430){out[i]=q;continue}
-    let sum=q*4,weight=4;
+    let sum=q*6,weight=6;
     if(x){const v=a[i-1];if(v!==MISSING){sum+=Math.max(0,v);weight++}}
     if(x<sw-1){const v=a[i+1];if(v!==MISSING){sum+=Math.max(0,v);weight++}}
     if(y){const v=a[i-sw];if(v!==MISSING){sum+=Math.max(0,v);weight++}}
@@ -93,25 +93,21 @@ function rdrFilteredRadar(a){
   return out;
 }
 
-// The source MRMS field is numeric, not an image. For larger displays we
-// interpolate that numeric field into the physical backing raster before color
-// mapping. This removes the blocky 456 x 257 bitmap upscale while preserving
-// the same meteorological values and strong-cell cores.
 eRadarCanvas=function(frame,def=view()){
-  if(!frame)return null;const key=`${frame.key}|${def.id}|${rdrBackingKey()}|hidpi`;
+  if(!frame)return null;const key=`${frame.key}|${def.id}|${rdrBackingKey()}|clarity2`;
   if(eRadarCache.has(key))return eRadarCache.get(key);
   const a=frame.views?.[def.id];if(!a)return null;
-  const sw=CFG.width,sh=CFG.height,src=rdrFilteredRadar(a),rw=canvas.width,rh=canvas.height,c=document.createElement('canvas');c.width=rw;c.height=rh;
+  const sw=CFG.width,sh=CFG.height,sharp=state.runtime&&state.runtime.lowPower||canvas.width/CFG.width<=1.5,src=sharp?rdrSharpRadar(a):rdrFilteredRadar(a),rw=canvas.width,rh=canvas.height,c=document.createElement('canvas');c.width=rw;c.height=rh;
   const x=c.getContext('2d'),im=x.createImageData(rw,rh),d=im.data,x0=new Int32Array(rw),x1=new Int32Array(rw),xf=new Float32Array(rw);
   for(let px=0;px<rw;px++){const sx=rw===1?0:px/(rw-1)*(sw-1),a0=Math.floor(sx);x0[px]=a0;x1[px]=Math.min(sw-1,a0+1);xf[px]=sx-a0}
   for(let py=0;py<rh;py++){
     const sy=rh===1?0:py/(rh-1)*(sh-1),y0=Math.floor(sy),y1=Math.min(sh-1,y0+1),fy=sy-y0,r0=y0*sw,r1=y1*sw,base=py*rw;
     for(let px=0;px<rw;px++){
       const xa=x0[px],xb=x1[px],fx=xf[px],top=src[r0+xa]+(src[r0+xb]-src[r0+xa])*fx,bottom=src[r1+xa]+(src[r1+xb]-src[r1+xa])*fx,q=top+(bottom-top)*fy,z=q/10,col=eRadarColor(z);if(!col)continue;
-      const j=(base+px)*4;d[j]=col[0]|0;d[j+1]=col[1]|0;d[j+2]=col[2]|0;d[j+3]=z<10?130:z<20?182:z<35?220:242;
+      const j=(base+px)*4;d[j]=col[0]|0;d[j+1]=col[1]|0;d[j+2]=col[2]|0;d[j+3]=z<10?185:z<20?215:z<35?235:250;
     }
   }
-  x.putImageData(im,0,0);eRadarCache.set(key,c);while(eRadarCache.size>28)eRadarCache.delete(eRadarCache.keys().next().value);return c;
+  x.putImageData(im,0,0);eRadarCache.set(key,c);while(eRadarCache.size>24)eRadarCache.delete(eRadarCache.keys().next().value);return c;
 };
 
 eRadar=function(now=performance.now()){
@@ -119,8 +115,6 @@ eRadar=function(now=performance.now()){
   if(tr&&tr.from!==tr.to){const u=clamp((now-tr.start)/CFG.radarBlendMs,0,1),t=u*u*(3-2*u);draw(state.frames[tr.from],1-t);draw(state.frames[tr.to],t);if(u>=1)state.transition=null}else draw(displayedFrame(),1);ctx.globalAlpha=1;ctx.restore();
 };
 
-// alerts.js owns the production composition. Re-state it here only so the
-// high-density cached base/line canvases are drawn into logical dimensions.
 render=function(now=performance.now()){
   const t0=performance.now();rdrSetMainTransform();ctx.fillStyle='#04131b';ctx.fillRect(0,0,CFG.width,CFG.height);
   let alertBox=null;if(state.frames.length){ctx.drawImage(eBase(),0,0,CFG.width,CFG.height);eRadar(now);ctx.drawImage(eLines(),0,0,CFG.width,CFG.height);eDrawTropics();eDrawWarnings();eNearestRain();const occ=eOcc();alertBox=eAlertSummarySpec();if(alertBox)occ.push({x:alertBox.x,y:alertBox.y,w:alertBox.w,h:alertBox.h});eSevereSymbols(occ);eStormFocus(occ);eWarningLabels(occ);eCityLabels(occ);eHomeMarker();eScale();eVignette()}else renderUnavailable();
