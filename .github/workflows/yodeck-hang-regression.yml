@@ -26,6 +26,7 @@ jobs:
           RDR_RELEASE_BASE=origin/main node qa/cache-release-regression.mjs
           grep -q 'fetchWithTimeout' radar.js
           grep -q 'decompression fallback timeout' core.js
+          grep -q 'unsupported asynchronous compression' core.js
       - name: Install browser QA
         run: npm install --no-save --package-lock=false puppeteer-core@25.9.0 >/dev/null
       - name: Serve regression page

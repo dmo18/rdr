@@ -62,9 +62,15 @@ function loadCompatInflater(){
 }
 async function inflate(buf,kind){
   if(typeof DecompressionStream==='function')return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream(kind))).arrayBuffer();
-  const lib=await loadCompatInflater(),input=new Uint8Array(buf),out=kind==='gzip'?lib.gunzipSync(input):kind==='deflate'?lib.unzlibSync(input):null;
-  if(!out)throw new Error(`unsupported compression ${kind}`);
-  return out.buffer.slice(out.byteOffset,out.byteOffset+out.byteLength);
+  const lib=await loadCompatInflater(),input=new Uint8Array(buf),decode=kind==='gzip'?lib.gunzip:kind==='deflate'?lib.unzlib:null;
+  if(typeof decode!=='function')throw new Error(`unsupported asynchronous compression ${kind}`);
+  const timeout=requestTimeout(30000);
+  return new Promise((resolve,reject)=>{
+    let settled=false,cancel=null,timer;
+    const finish=(error,out)=>{if(settled)return;settled=true;clearTimeout(timer);if(error)reject(error);else if(out)resolve(out.buffer.slice(out.byteOffset,out.byteOffset+out.byteLength));else reject(new Error(`empty ${kind} output`))};
+    timer=setTimeout(()=>{try{if(typeof cancel==='function')cancel()}catch{}finish(new Error(`decompression timeout after ${timeout}ms (${kind})`))},timeout);
+    try{cancel=decode(input,finish)}catch(e){finish(e)}
+  });
 }
 async function listProductDay(product,stamp){
   const prefix=`CONUS/${product}/${stamp}/`,url=`${CFG.mrmsBucket}/?list-type=2&prefix=${encodeURIComponent(prefix)}&max-keys=1000`,xml=await fetchText(url),keys=[],re=/<Key>([^<]+)<\/Key>/g;let m;
