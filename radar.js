@@ -101,8 +101,8 @@ async function decodePngToViews(meta,kind='radar'){
 }
 
 async function loadFieldKey(key,kind='radar'){
-  const r=await fetch(`${CFG.mrmsBucket}/${key}`,{cache:'no-store'});if(!r.ok)throw new Error(`${r.status} ${key}`);
-  const grib=await inflate(await r.arrayBuffer(),'gzip'),meta=parseGrib(grib),views=await decodePngToViews(meta,kind);
+  const bytes=await fetchWithTimeout(`${CFG.mrmsBucket}/${key}`,{cache:'no-store'},30000,r=>r.arrayBuffer());
+  const grib=await inflate(bytes,'gzip'),meta=parseGrib(grib),views=await decodePngToViews(meta,kind);
   return{key,time:meta.ref,views,meta};
 }
 

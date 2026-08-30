@@ -30,4 +30,12 @@ http://127.0.0.1:8765/qa/replay.html?view=regional
 
 The replay page uses the actual application renderer and recorded numeric/vector state, without live network requests. It exposes `window.__RDR__` and `window.__QA__` for inspection.
 
+## Yodeck hang regression
+
+`qa/hang-regression.html` runs at 456 x 257 and deterministically simulates a runtime without `AbortController`. It returns a valid MRMS listing, stalls the GRIB response body three times and verifies that both `pollRadar` and `backfillRadar` release their mutexes while surfacing unavailable/stale state. It also stalls the fallback `fflate` script once, then verifies its next load succeeds. The `Yodeck polling hang regression` workflow runs this page in Chromium without external NOAA or CDN dependencies.
+
+## Local Yodeck stress
+
+With `puppeteer-core` available and a local server running, execute `CHROME=/path/to/chrome node qa/yodeck-stress.mjs`. It runs all four live views plus the low-power full runtime under 4x CPU throttling and uncached reloads. It captures native 456 x 257 CSS-panel screenshots. Adaptive HiDPI may use a larger canvas backing store (for example 570 x 321 at render scale 1.25); the verifier intentionally checks the CSS viewport and panel, not that implementation detail.
+
 Do not commit `qa/fixture.json`. It is a generated artifact.

@@ -32,17 +32,32 @@ function compactTime(d){return d&&Number.isFinite(d.getTime())?d.toLocaleTimeStr
 function utcTime(d){return d&&Number.isFinite(d.getTime())?d.toLocaleTimeString('en-US',{timeZone:'UTC',hour:'2-digit',minute:'2-digit',hour12:false})+'Z':'--:--Z'}
 function dayStamp(d=new Date()){return d.toISOString().slice(0,10).replace(/-/g,'')}
 function keyTime(key){const m=key.match(/(\d{8})-(\d{6})/);if(!m)return null;return new Date(Date.UTC(+m[1].slice(0,4),+m[1].slice(4,6)-1,+m[1].slice(6,8),+m[2].slice(0,2),+m[2].slice(2,4),+m[2].slice(4,6)))}
-function requestSignal(ms){try{return typeof AbortSignal!=='undefined'&&typeof AbortSignal.timeout==='function'?AbortSignal.timeout(ms):undefined}catch{return undefined}}
-async function fetchText(url){const r=await fetch(url,{cache:'no-store',signal:requestSignal(20000)});if(!r.ok)throw new Error(`${r.status} ${url}`);return r.text()}
-async function fetchJson(url,headers={}){const r=await fetch(url,{cache:'no-store',headers,signal:requestSignal(15000)});if(!r.ok)throw new Error(`${r.status} ${url}`);return r.json()}
+function requestTimeout(ms){const qa=Number(state.runtime&&state.runtime.requestTimeoutMs);return Number.isFinite(qa)&&qa>=10?qa:ms}
+async function fetchWithTimeout(url,options={},ms=15000,read=r=>r){
+  const timeout=requestTimeout(ms),controller=typeof AbortController==='function'?new AbortController():null;
+  let timer=null;
+  const expired=new Promise((_,reject)=>{timer=setTimeout(()=>{if(controller)controller.abort();reject(new Error(`request timeout after ${timeout}ms: ${url}`))},timeout)});
+  try{
+    const request={...options};if(controller)request.signal=controller.signal;
+    const r=await Promise.race([Promise.resolve().then(()=>fetch(url,request)),expired]);if(!r.ok)throw new Error(`${r.status} ${url}`);
+    return await Promise.race([Promise.resolve().then(()=>read(r)),expired]);
+  }finally{clearTimeout(timer)}
+}
+function fetchText(url){return fetchWithTimeout(url,{cache:'no-store'},20000,r=>r.text())}
+function fetchJson(url,headers={}){return fetchWithTimeout(url,{cache:'no-store',headers},15000,r=>r.json())}
 let compatInflaterPromise=null;
 function loadCompatInflater(){
   if(window.fflate)return Promise.resolve(window.fflate);
   if(compatInflaterPromise)return compatInflaterPromise;
-  compatInflaterPromise=new Promise((resolve,reject)=>{
+  let promise;
+  promise=new Promise((resolve,reject)=>{
     const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js';s.async=true;s.crossOrigin='anonymous';
-    s.onload=()=>window.fflate?resolve(window.fflate):reject(new Error('fflate unavailable after load'));s.onerror=()=>reject(new Error('unable to load decompression fallback'));document.head.appendChild(s);
+    let settled=false,timer;
+    const finish=(error,lib)=>{if(settled)return;settled=true;clearTimeout(timer);s.onload=s.onerror=null;if(s.parentNode)s.parentNode.removeChild(s);if(error){if(compatInflaterPromise===promise)compatInflaterPromise=null;reject(error)}else resolve(lib)};
+    s.onload=()=>window.fflate?finish(null,window.fflate):finish(new Error('fflate unavailable after load'));s.onerror=()=>finish(new Error('unable to load decompression fallback'));
+    timer=setTimeout(()=>finish(new Error(`decompression fallback timeout after ${requestTimeout(15000)}ms`)),requestTimeout(15000));document.head.appendChild(s);
   });
+  compatInflaterPromise=promise;
   return compatInflaterPromise;
 }
 async function inflate(buf,kind){
