@@ -34,8 +34,10 @@ The replay page uses the actual application renderer and recorded numeric/vector
 
 `qa/hang-regression.html` runs at 456 x 257 and deterministically simulates a runtime without `AbortController`. It returns a valid MRMS listing, stalls the GRIB response body three times and verifies that both `pollRadar` and `backfillRadar` release their mutexes while surfacing unavailable/stale state. It also stalls the fallback `fflate` script once, then verifies its next load succeeds. The `Yodeck polling hang regression` workflow runs this page in Chromium without external NOAA or CDN dependencies.
 
+`node qa/cache-release-regression.mjs` is a release guard: every versioned runtime asset must share one release token, and any changed referenced JavaScript/CSS asset must receive a different token than its parent commit. This is required because an HTML refresh alone can leave a Yodeck Chromium using cached `core.js`/`radar.js` bytes.
+
 ## Local Yodeck stress
 
-With `puppeteer-core` available and a local server running, execute `CHROME=/path/to/chrome node qa/yodeck-stress.mjs`. It runs all four live views plus the low-power full runtime under 4x CPU throttling and uncached reloads. It captures native 456 x 257 CSS-panel screenshots. Adaptive HiDPI may use a larger canvas backing store (for example 570 x 321 at render scale 1.25); the verifier intentionally checks the CSS viewport and panel, not that implementation detail.
+With `puppeteer-core` available and a local server running, execute `CHROME=/path/to/chrome node qa/yodeck-stress.mjs`. It runs all four live views plus the low-power full runtime under 4x CPU throttling and uncached reloads, and waits for radar/backfill work to drain after each reload. It captures native 456 x 257 CSS-panel screenshots. Adaptive HiDPI may use a larger canvas backing store (for example 570 x 321 at render scale 1.25); the verifier intentionally checks the CSS viewport and panel, not that implementation detail.
 
 Do not commit `qa/fixture.json`. It is a generated artifact.

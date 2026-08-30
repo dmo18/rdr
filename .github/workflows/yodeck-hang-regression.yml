@@ -14,12 +14,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Check runtime sources
         run: |
           set -euo pipefail
           node --check core.js
           node --check radar.js
           node --check qa/hang-regression.js
+          node qa/cache-release-regression.mjs
           grep -q 'fetchWithTimeout' radar.js
           grep -q 'decompression fallback timeout' core.js
       - name: Install browser QA
