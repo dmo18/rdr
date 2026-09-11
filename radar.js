@@ -167,21 +167,31 @@ async function backfillRadar(){
   }finally{state.radarBackfilling=false}
 }
 
+function retryRadarSoon(){
+  if(state.frames.length||state.radarRetryTimer)return;
+  state.radarRetryTimer=setTimeout(()=>{
+    state.radarRetryTimer=null;
+    pollRadar({initial:true}).catch(e=>state.errors.push(String(e)));
+  },15000);
+}
+
 async function pollRadar({initial=false}={}){
   if(state.radarLoading)return;state.radarLoading=true;
   try{
     const keys=await recentKeys(CFG.radarProduct,5),have=new Set(state.frames.map(f=>f.key)),newest=keys[keys.length-1];
+    if(!newest)throw new Error('no current MRMS radar frames listed');
     if(newest&&!have.has(newest)){
       const f=await loadFieldKey(newest,'radar');state.frames.push(f);state.frames.sort((a,b)=>a.time-b.time);state.frames=state.frames.slice(-5);state.cursor=state.frames.length-1;deriveHome();render();
       if(initial){panel.dataset.radar='live'}
     }
+    if(state.frames.length&&state.radarRetryTimer){clearTimeout(state.radarRetryTimer);state.radarRetryTimer=null}
     state.lastListError=null;
     if(initial&&!verifyMode){
       const historyCount=state.runtime&&state.runtime.lowPower?2:3;
       state.pendingRadarKeys=keys.slice(0,-1).slice(-historyCount).reverse().filter(key=>!state.frames.some(f=>f.key===key));
       setTimeout(()=>backfillRadar().catch(e=>state.errors.push(String(e))),state.runtime&&state.runtime.lowPower?2200:900);
     }
-  }catch(e){state.lastListError=e;state.errors.push(String(e));panel.dataset.radar=state.frames.length?'degraded':'unavailable';render()}
+  }catch(e){state.lastListError=e;state.errors.push(String(e));panel.dataset.radar=state.frames.length?'degraded':'unavailable';retryRadarSoon();render()}
   finally{state.radarLoading=false;panel.dataset.freshness=freshness()}
 }
 
