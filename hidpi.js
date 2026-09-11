@@ -13,7 +13,7 @@ const RDR_MAX_RENDER_SCALE=5;
 const RDR_RENDER_STEP=.25;
 
 function rdrPhysicalTarget(cssScale){
-  const dpr=Math.max(1,Number(window.devicePixelRatio)||1),base=Math.max(1,cssScale*dpr),floor=state.runtime&&state.runtime.lowPower?1.25:1;
+  const dpr=Math.max(1,Number(window.devicePixelRatio)||1),base=Math.max(1,cssScale*dpr),floor=1;
   return Math.max(floor,base);
 }
 function rdrQuantizedScale(target){
