@@ -151,9 +151,10 @@ jobs:
           for v in views+['full-runtime']:
               Image.open(root/'live'/f'{v}.png').convert('RGB').resize((1824,1028),Image.Resampling.NEAREST).save(root/'live'/f'{v}-4x.png')
           metrics=json.load(open(root/'live'/'metrics.json'));lines=[]
+          def fmt(n): return 'n/a' if n is None else f'{n:.1f}'
           for v in views:
-              d=metrics[v];lines.append(f"{v}: ready={d['readyMs']}ms startupPaintMax={d['startupPaint']['max']:.1f}ms startupPrep={d['startupPrepMs']:.1f}ms incrementalPrep={d['incrementalPrepMs']:.1f}ms warmP95={d['paint']['p95']:.1f}ms warmMax={d['paint']['max']:.1f}ms frames={d['frames']} surface={d['surface']} states={d['boundaries']['states']} wind={d.get('weather',{}).get('windMph')}")
-          d=json.load(open(root/'live'/'full-runtime.json'));lines.append(f"full-runtime: ready={d['readyMs']}ms startupPaintMax={d['startupPaint']['max']:.1f}ms startupPrep={d['startupPrepMs']:.1f}ms incrementalPrep={d['incrementalPrepMs']:.1f}ms warmP95={d['paint']['p95']:.1f}ms warmMax={d['paint']['max']:.1f}ms frames={d['frames']} lightning={d['severe']['lightning']} mesh={d['severe']['mesh']}")
+              d=metrics[v];lines.append(f"{v}: ready={d['readyMs']}ms startupPaintMax={fmt(d['startupPaint']['max'])}ms startupPrep={fmt(d['startupPrepMs'])}ms incrementalPrep={fmt(d['incrementalPrepMs'])}ms warmP95={fmt(d['paint']['p95'])}ms warmMax={fmt(d['paint']['max'])}ms frames={d['frames']} surface={d['surface']} states={d['boundaries']['states']} wind={d.get('weather',{}).get('windMph')}")
+          d=json.load(open(root/'live'/'full-runtime.json'));lines.append(f"full-runtime: ready={d['readyMs']}ms startupPaintMax={fmt(d['startupPaint']['max'])}ms startupPrep={fmt(d['startupPrepMs'])}ms incrementalPrep={fmt(d['incrementalPrepMs'])}ms warmP95={fmt(d['paint']['p95'])}ms warmMax={fmt(d['paint']['max'])}ms frames={d['frames']} lightning={d['severe']['lightning']} mesh={d['severe']['mesh']}")
           (root/'live'/'performance.txt').write_text('\n'.join(lines)+'\n')
           PY
 
