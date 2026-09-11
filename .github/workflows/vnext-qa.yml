@@ -20,7 +20,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -q 'data-ui="vnext-2026.08.12.1"' index.html
-          grep -q '<script src="vnext.js"></script>' index.html
+          grep -Eq '<script src="vnext\.js(\?[^\"]*)?"></script>' index.html
           grep -q "cityLabelBoxes=0" vnext.js
           grep -q "lightningSymbols" vnext.js
           grep -q "motionArrows" vnext.js

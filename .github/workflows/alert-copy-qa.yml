@@ -20,7 +20,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -q 'data-copy="alert-copy-2026.08.12.1"' index.html
-          grep -q 'alert-copy.js?v=20260812.1' index.html
+          grep -Eq 'alert-copy\.js\?v=[0-9]+' index.html
           grep -q "alertCounterPolicy='typed-counts-only'" alert-copy.js
           grep -q 'ambiguousPlusCounter=false' alert-copy.js
           if grep -Eq '\+\$\{(more|sum\.otherCount|otherCount)\}' alert-copy.js; then

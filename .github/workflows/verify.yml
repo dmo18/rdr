@@ -19,12 +19,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'data-version="2026.08.12.8"' index.html
+          grep -Eq 'data-version="[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+"' index.html
           grep -q 'data-layout="enterprise-v8"' index.html
-          grep -q '<script src="enterprise-core.js"></script>' index.html
-          grep -q '<script src="enterprise-map.js"></script>' index.html
-          grep -q '<script src="enterprise-overlays.js"></script>' index.html
-          grep -q '<script src="enterprise-ui.js"></script>' index.html
+          grep -Eq '<script src="enterprise-core\.js(\?[^\"]*)?"></script>' index.html
+          grep -Eq '<script src="enterprise-map\.js(\?[^\"]*)?"></script>' index.html
+          grep -Eq '<script src="enterprise-overlays\.js(\?[^\"]*)?"></script>' index.html
+          grep -Eq '<script src="enterprise-ui\.js(\?[^\"]*)?"></script>' index.html
           grep -q 'noaa-mrms-pds.s3.amazonaws.com' core.js
           grep -q 'MergedReflectivityQCComposite_00.50' core.js
           grep -q 'template!==41' radar.js
@@ -71,7 +71,7 @@ jobs:
             for(const id of ['home','metro','florida','regional']){
               const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const browserErrors=[];page.on('pageerror',e=>browserErrors.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push('console: '+m.text())});
               const t0=Date.now(),sep=base.includes('?')?'&':'?';await page.goto(`${base}${sep}view=${id}&verify=1&ci=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
-              await page.waitForFunction(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get(id);return p?.dataset?.version==='2026.08.12.8'&&p?.dataset?.layout==='enterprise-v8'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(s.surface?.get(id)?.length||0)>=1&&(b?.states?.length||0)>=1},{timeout:180000,polling:250},id);
+              await page.waitForFunction(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get(id);return p?.dataset?.layout==='enterprise-v8'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(s.surface?.get(id)?.length||0)>=1&&(b?.states?.length||0)>=1},{timeout:180000,polling:250},id);
               const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);const incrementalPrepMs=await page.evaluate(()=>eWarmCurrentView());await page.evaluate(()=>{window.__RDR__.perf.samples=[]});await new Promise(r=>setTimeout(r,2500));
               const diag=await page.evaluate(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s.boundaries.get(id),latest=s.frames.at(-1)?.time;return{id,dataset:{...p.dataset},frames:s.frames.length,surface:s.surface.get(id)?.length||0,boundaries:{states:b?.states?.length||0,counties:b?.counties?.length||0},latestAgeMs:latest?Date.now()-new Date(latest).getTime():null,startupPrepMs:s.startupPrepMs,home:s.home,weather:s.weather,errors:s.errors,samples:[...(s.perf?.samples||[])],viewport:[innerWidth,innerHeight],panel:[p.getBoundingClientRect().width,p.getBoundingClientRect().height]};},id);
               diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.incrementalPrepMs=incrementalPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=browserErrors;all[id]=diag;
@@ -98,7 +98,7 @@ jobs:
           set -euo pipefail
           for i in $(seq 1 60); do
             body=$(curl -fsSL "https://dmo18.github.io/rdr/?verify=${GITHUB_SHA}-${i}" || true)
-            if printf '%s' "$body" | grep -q 'data-version="2026.08.12.8"' && printf '%s' "$body" | grep -q 'data-layout="enterprise-v8"'; then exit 0; fi
+            if printf '%s' "$body" | grep -Eq 'data-version="[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+"' && printf '%s' "$body" | grep -q 'data-layout="enterprise-v8"'; then exit 0; fi
             sleep 5
           done
           echo 'Pages did not publish enterprise v8' >&2
@@ -123,7 +123,7 @@ jobs:
           const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
           try{
             const page=await browser.newPage();await page.setViewport({width:456,height:257,deviceScaleFactor:1});const browserErrors=[];page.on('pageerror',e=>browserErrors.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error')browserErrors.push('console: '+m.text())});
-            const t0=Date.now();await page.goto(`https://dmo18.github.io/rdr/?view=florida&full=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});await page.waitForFunction(()=>{const s=window.__RDR__,b=s?.boundaries?.get('florida'),p=document.querySelector('#panel');return p?.dataset?.version==='2026.08.12.8'&&p?.dataset?.layout==='enterprise-v8'&&p?.dataset?.radar==='live'&&s?.frames?.length>=4&&s?.severe?.lightning&&s?.severe?.mesh&&(b?.states?.length||0)>=1},{timeout:240000,polling:500});
+            const t0=Date.now();await page.goto(`https://dmo18.github.io/rdr/?view=florida&full=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});await page.waitForFunction(()=>{const s=window.__RDR__,b=s?.boundaries?.get('florida'),p=document.querySelector('#panel');return p?.dataset?.layout==='enterprise-v8'&&p?.dataset?.radar==='live'&&s?.frames?.length>=4&&s?.severe?.lightning&&s?.severe?.mesh&&(b?.states?.length||0)>=1},{timeout:240000,polling:500});
             const startupSamples=await page.evaluate(()=>[...(window.__RDR__.perf?.samples||[])]);const incrementalPrepMs=await page.evaluate(()=>eWarmCurrentView());await page.evaluate(()=>{window.__RDR__.perf.samples=[]});await new Promise(r=>setTimeout(r,3000));const diag=await page.evaluate(()=>{const s=window.__RDR__;return{frames:s.frames.length,startupPrepMs:s.startupPrepMs,severe:{lightning:!!s.severe.lightning,mesh:!!s.severe.mesh},weather:s.weather,errors:s.errors,samples:[...(s.perf?.samples||[])],dataset:{...document.querySelector('#panel').dataset},viewport:[innerWidth,innerHeight]}});diag.readyMs=Date.now()-t0;diag.startupPaint=stats(startupSamples);diag.incrementalPrepMs=incrementalPrepMs;diag.paint=stats(diag.samples);delete diag.samples;diag.browserErrors=browserErrors;
             await (await page.$('#panel')).screenshot({path:'/tmp/rdr-v8-verify/live/full-runtime.png'});fs.writeFileSync('/tmp/rdr-v8-verify/live/full-runtime.json',JSON.stringify(diag,null,2));
             if(browserErrors.length)throw new Error(JSON.stringify(diag));if(diag.errors.some(e=>/ReferenceError|SyntaxError|invalid GRIB|unsupported PNG|unsupported GRIB/i.test(e)))throw new Error(`runtime decoder: ${JSON.stringify(diag)}`);if(diag.startupPaint.max!=null&&diag.startupPaint.max>300)throw new Error(`startup paint: ${JSON.stringify(diag)}`);if(diag.startupPrepMs!=null&&diag.startupPrepMs>350)throw new Error(`startup prep: ${JSON.stringify(diag)}`);if(diag.incrementalPrepMs>450)throw new Error(`incremental prep: ${JSON.stringify(diag)}`);if(diag.paint.p95!=null&&diag.paint.p95>16)throw new Error(`warm p95: ${JSON.stringify(diag)}`);

@@ -19,7 +19,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q '<script src="alerts.js"></script>' index.html
+          grep -Eq '<script src="alerts\.js(\?[^\"]*)?"></script>' index.html
           grep -q 'data-alerts="loading"' index.html
           grep -q 'alertArcQuery(0' alerts.js
           grep -q 'alertArcQuery(1' alerts.js
@@ -106,7 +106,7 @@ jobs:
           set -euo pipefail
           for i in $(seq 1 60); do
             body=$(curl -fsSL "https://dmo18.github.io/rdr/?alerts=${GITHUB_SHA}-${i}" || true)
-            if printf '%s' "$body" | grep -q '<script src="alerts.js"></script>'; then exit 0; fi
+            if printf '%s' "$body" | grep -Eq '<script src="alerts\.js(\?[^\"]*)?"></script>'; then exit 0; fi
             sleep 5
           done
           echo 'Pages did not publish alerts.js' >&2
