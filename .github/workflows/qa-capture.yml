@@ -79,7 +79,7 @@ jobs:
           JS
           node .qa-capture.mjs
           rm -f .qa-capture.mjs
-          cp index.html styles.css core.js radar.js context.js render.js broadcast.js app.js /tmp/rdr-qa/source/
+          cp index.html styles.css core.js radar.js context.js app.js hidpi.js vnext.js vnext-motion.js alert-copy.js alerts.js enterprise-core.js enterprise-map.js enterprise-overlays.js enterprise-ui.js /tmp/rdr-qa/source/
           cp -R qa /tmp/rdr-qa/source/ 2>/dev/null || true
           du -h /tmp/rdr-qa/fixture.json
 
