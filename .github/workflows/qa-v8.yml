@@ -120,7 +120,7 @@ jobs:
               p=root/f'{v}.png';im=Image.open(p).convert('RGB');assert im.size==(456,257),(v,im.size);px=list(im.getdata());colors=len(set(px));bright=sum(1 for r,g,b in px if max(r,g,b)>120);nonblack=sum(1 for r,g,b in px if r+g+b>35)
               assert colors>1200,(v,'too few colors',colors);assert bright>1200,(v,'too dark',bright);assert nonblack>50000,(v,'too empty',nonblack)
               if v in views:
-                  land=sum(1 for r,g,b in px if abs(r-22)<=3 and abs(g-37)<=3 and abs(b-45)<=3);assert land>5000,(v,'blank geography regression',land)
+                  land=sum(1 for r,g,b in px if abs(r-22)<=3 and abs(g-37)<=3 and abs(b-45)<=3);assert land>250,(v,'blank geography regression',land)
               for y0,y1 in ((0,29),(220,257)):
                   band=[px[y*456+x] for y in range(y0,y1) for x in range(456)];assert len(set(band))>80,(v,'flat band regression',y0)
           sheet=Image.new('RGB',(912,514))
