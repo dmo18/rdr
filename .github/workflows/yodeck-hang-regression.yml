@@ -22,7 +22,8 @@ jobs:
           node --check core.js
           node --check radar.js
           node --check qa/hang-regression.js
-          node qa/cache-release-regression.mjs
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          RDR_RELEASE_BASE=origin/main node qa/cache-release-regression.mjs
           grep -q 'fetchWithTimeout' radar.js
           grep -q 'decompression fallback timeout' core.js
           grep -q 'unsupported asynchronous compression' core.js
