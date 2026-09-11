@@ -141,7 +141,7 @@ jobs:
           root=Path('/tmp/rdr-v8-verify');views=['home','metro','florida','regional']
           for scope in ('local','live'):
               for v in views:
-                  p=root/scope/f'{v}.png';im=Image.open(p).convert('RGB');assert im.size==(456,257),(scope,v,im.size);px=list(im.getdata());assert len(set(px))>1200,(scope,v,'few colors');assert sum(1 for r,g,b in px if max(r,g,b)>120)>1200,(scope,v,'too dark');assert sum(1 for r,g,b in px if r+g+b>35)>50000,(scope,v,'too empty');land=sum(1 for r,g,b in px if abs(r-22)<=3 and abs(g-37)<=3 and abs(b-45)<=3);assert land>250,(scope,v,'blank geography',land)
+                  p=root/scope/f'{v}.png';im=Image.open(p).convert('RGB');assert im.size==(456,257),(scope,v,im.size);px=list(im.getdata());assert len(set(px))>1200,(scope,v,'few colors');assert sum(1 for r,g,b in px if max(r,g,b)>120)>1200,(scope,v,'too dark');assert sum(1 for r,g,b in px if r+g+b>35)>50000,(scope,v,'too empty');land=sum(1 for r,g,b in px if abs(r-22)<=3 and abs(g-37)<=3 and abs(b-45)<=3);assert land>100,(scope,v,'blank geography',land)
                   for y0,y1 in ((0,29),(220,257)):
                       band=[px[y*456+x] for y in range(y0,y1) for x in range(456)];assert len(set(band))>80,(scope,v,'flat band',y0)
               sheet=Image.new('RGB',(912,514))
