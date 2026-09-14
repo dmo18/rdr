@@ -1,0 +1,42 @@
+name: Deploy PR 5 Yodeck preview
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the exact PR 5 head
+        uses: actions/checkout@v4
+        with:
+          ref: 3b8822ee8b4ccb79aa868731091f7e12e817075f
+          path: candidate
+
+      - name: Check out the Pages source branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: pages
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish isolated preview subtree
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f candidate/index.html
+          grep -q 'data-build="yodeck-legacy-bootstrap-2026.09.14.1"' candidate/index.html
+          target=pages/pr-5
+          rm -rf "$target"
+          mkdir -p "$target"
+          find candidate -mindepth 1 -maxdepth 1 ! -name .git ! -name .github -exec cp -a {} "$target" \;
+          test -f "$target/index.html"
+          grep -q 'data-version="2026.09.14.1"' "$target/index.html"
+          git -C pages config user.name 'github-actions[bot]'
+          git -C pages config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C pages add pr-5
+          git -C pages commit -m 'Deploy PR 5 Yodeck preview 3b8822e'
+          git -C pages push origin HEAD:main
