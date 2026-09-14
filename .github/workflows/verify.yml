@@ -37,6 +37,7 @@ jobs:
           test ! -e render.js
           ! grep -R -q 'data/home.png\|data/radar.json\|scripts/ingest.py' index.html app.js core.js radar.js context.js enterprise-*.js README.md
           for f in app.js core.js radar.js context.js enterprise-core.js enterprise-map.js enterprise-overlays.js enterprise-ui.js qa/replay.js; do node --check "$f"; done
+          node qa/legacy-compat.mjs
 
       - name: Probe current NOAA sources
         shell: bash

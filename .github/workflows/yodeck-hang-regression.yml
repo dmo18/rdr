@@ -22,6 +22,7 @@ jobs:
           node --check core.js
           node --check radar.js
           node --check qa/hang-regression.js
+          node qa/legacy-compat.mjs
           git fetch --no-tags origin main:refs/remotes/origin/main
           RDR_RELEASE_BASE=origin/main node qa/cache-release-regression.mjs
           grep -q 'fetchWithTimeout' radar.js
@@ -56,3 +57,8 @@ jobs:
             console.log(JSON.stringify(qa));
           }finally{await browser.close()}
           JS
+      - name: Verify old-Chromium bootstrap and permanent-loading escape hatch
+        run: |
+          set -euo pipefail
+          export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          node qa/legacy-bootstrap.mjs
