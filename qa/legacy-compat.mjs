@@ -7,5 +7,5 @@ for(const file of files){
   for(const [name,pattern] of unsupported)if(pattern.test(source))throw new Error(`${file} retains ${name}, which Yodeck Chromium cannot parse`);
 }
 const core=fs.readFileSync('core.js','utf8');
-for(const name of ['Promise.allSettled','Array.prototype.at','Array.prototype.flat'])if(!core.includes(`if (!${name})`))throw new Error(`missing legacy ${name} shim`);
+for(const name of ['Promise.allSettled','Array.prototype.at','Array.prototype.flat','Object.fromEntries'])if(!core.includes(`if (!${name})`))throw new Error(`missing legacy ${name} shim`);
 console.log(`legacy Yodeck syntax/API gate passed for ${files.length} runtime files`);
