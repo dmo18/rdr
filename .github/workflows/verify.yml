@@ -27,8 +27,8 @@ jobs:
           grep -Eq '<script src="enterprise-ui\.js(\?[^\"]*)?"></script>' index.html
           grep -q 'noaa-mrms-pds.s3.amazonaws.com' core.js
           grep -q 'MergedReflectivityQCComposite_00.50' core.js
-          grep -q 'template!==41' radar.js
-          grep -q 'meta.bits===24' radar.js
+          grep -Eq 'template\s*!==\s*41' radar.js
+          grep -Eq 'meta\.bits\s*===\s*24' radar.js
           grep -q 'function localCentroid' radar.js
           grep -q 'function qvSpeedMph' context.js
           grep -q 'function eRadarCanvas' enterprise-map.js
@@ -37,6 +37,7 @@ jobs:
           test ! -e render.js
           ! grep -R -q 'data/home.png\|data/radar.json\|scripts/ingest.py' index.html app.js core.js radar.js context.js enterprise-*.js README.md
           for f in app.js core.js radar.js context.js enterprise-core.js enterprise-map.js enterprise-overlays.js enterprise-ui.js qa/replay.js; do node --check "$f"; done
+          node qa/legacy-compat.mjs
 
       - name: Probe current NOAA sources
         shell: bash
