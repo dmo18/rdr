@@ -21,11 +21,11 @@ jobs:
           set -euo pipefail
           grep -q 'data-ui="vnext-2026.08.12.1"' index.html
           grep -Eq '<script src="vnext\.js(\?[^\"]*)?"></script>' index.html
-          grep -q "cityLabelBoxes=0" vnext.js
+          grep -Eq 'cityLabelBoxes[[:space:]]*=[[:space:]]*0' vnext.js
           grep -q "lightningSymbols" vnext.js
           grep -q "motionArrows" vnext.js
-          grep -q "mapAlertBox=false" vnext.js
-          grep -q "advisoryLabels=0" vnext.js
+          grep -Eq 'mapAlertBox[[:space:]]*=[[:space:]]*false' vnext.js
+          grep -Eq 'advisoryLabels[[:space:]]*=[[:space:]]*0' vnext.js
           node --check vnext.js
           node --check alerts.js
           node --check hidpi.js
