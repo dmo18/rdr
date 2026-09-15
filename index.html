@@ -11,28 +11,28 @@
   <title>RDR Weather</title>
   <meta name="description" content="Live enterprise weather radar for South Florida, Florida, Gulf and Caribbean.">
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="styles.css?v=20260914.2">
+  <link rel="stylesheet" href="styles.css?v=20260915.1">
 </head>
 <body>
   <main id="shell">
-    <section id="panel" data-version="2026.09.14.2" data-release="2026.09.14.2" data-build="yodeck-physical-diag-2026.09.14.2" data-ui="vnext-2026.08.12.1" data-copy="alert-copy-2026.08.12.1" data-ready="false" data-view="home" data-engine="live-mrms" data-layout="enterprise-v8" data-resolution="adaptive-hidpi" data-radar="loading" data-freshness="loading" data-surface="loading" data-alerts="loading" aria-label="RDR live weather radar">
+    <section id="panel" data-version="2026.09.15.1" data-release="2026.09.15.1" data-build="yodeck-legacy-recovery-2026.09.15.1" data-ui="vnext-2026.08.12.1" data-copy="alert-copy-2026.08.12.1" data-ready="false" data-view="home" data-engine="live-mrms" data-layout="enterprise-v8" data-resolution="adaptive-hidpi" data-radar="loading" data-freshness="loading" data-surface="loading" data-alerts="loading" aria-label="RDR live weather radar">
       <canvas id="display" width="456" height="257" aria-label="Live weather radar"></canvas>
       <div id="boot"><b>RDR</b><span>ACQUIRING LIVE WEATHER DATA</span></div>
     </section>
   </main>
-  <script>(function(){var p=document.getElementById('panel'),b=document.getElementById('boot'),d=document.createElement('div'),stage='BOOT 01 HTML',last=stage,fail='',net='',err='',done=false,ua=String(navigator.userAgent||'').slice(0,72);d.id='rdr-diag';d.style.cssText='position:absolute;z-index:99;left:3px;bottom:3px;max-width:450px;padding:2px 3px;background:rgba(0,0,0,.82);color:#d8f7ff;font:5px/1.25 monospace;white-space:pre-wrap;text-align:left;pointer-events:none';p.appendChild(d);function clean(v){return String(v||'').replace(/[\r\n]+/g,' ').slice(0,86)}function yes(v){return v?'Y':'N'}function caps(){return'CAP F='+yes(window.fetch)+' P='+yes(window.Promise)+' W='+yes(window.Worker)+' OFE='+yes(Object.fromEntries)+' DS='+yes(window.DecompressionStream)+' AC='+yes(window.AbortController)+' U='+yes(window.URLSearchParams)}function paint(){var e='',h='';try{if(typeof state!=='undefined'){e=state.errors&&state.errors.length?clean(state.errors[state.errors.length-1]):'';h=state.home&&state.home.status?state.home.status:''}}catch(x){}d.textContent='RDR DIAG 2026.09.14.2\n'+stage+' | LAST '+last+(fail?'\nFAILED '+fail:'')+(net?'\nNET '+net:'')+(err?'\nERROR '+err:'')+'\nSTATE r='+p.getAttribute('data-radar')+' f='+p.getAttribute('data-freshness')+' s='+p.getAttribute('data-surface')+' ready='+p.getAttribute('data-ready')+' home='+h+'\n'+caps()+'\nUA '+ua+(e?'\nAPP '+e:'')}function stop(){if(done)return;done=true;p.setAttribute('data-ready','true');p.setAttribute('data-radar','unavailable');p.setAttribute('data-freshness','stale');if(b)b.className+=' off'}function mark(x){last=stage=x;paint()}function bad(x,v){fail=clean(x);if(v)err=clean(v);if(String(x).indexOf('BOOT')===0||String(x).indexOf('WINDOW')===0)stop();paint()}window.__RDR_DIAG__={stage:mark,script:function(x){mark(x+' LOADED')},fail:bad,net:function(x){net=clean(x);paint()},state:paint};window.onerror=function(m,u,l){bad('WINDOW '+clean(u||'SCRIPT'),clean(m)+' @'+l)};if(window.addEventListener)window.addEventListener('unhandledrejection',function(e){bad('UNHANDLED',e&&e.reason)});function failBoot(){if(done||!p||p.getAttribute('data-ready')==='true')return;bad('BOOT TIMEOUT')}setTimeout(failBoot,45000);setInterval(paint,1000);paint()}());</script>
-  <script src="core.js?v=20260914.2" onload="__RDR_DIAG__.script('BOOT 03 CORE')" onerror="__RDR_DIAG__.fail('BOOT 03 core.js')"></script>
-  <script src="radar.js?v=20260914.2" onload="__RDR_DIAG__.script('BOOT 04 RADAR')" onerror="__RDR_DIAG__.fail('BOOT 04 radar.js')"></script>
-  <script src="context.js?v=20260914.2" onload="__RDR_DIAG__.script('BOOT 05 CONTEXT')" onerror="__RDR_DIAG__.fail('BOOT 05 context.js')"></script>
-  <script src="enterprise-core.js?v=20260914.2" onload="__RDR_DIAG__.script('BOOT 06 ENTERPRISE')" onerror="__RDR_DIAG__.fail('BOOT 06 enterprise-core.js')"></script>
-  <script src="enterprise-map.js?v=20260914.2" onload="__RDR_DIAG__.script('BOOT 07 MAP')" onerror="__RDR_DIAG__.fail('BOOT 07 enterprise-map.js')"></script>
-  <script src="enterprise-overlays.js?v=20260914.2" onload="__RDR_DIAG__.script('BOOT 08 OVERLAYS')" onerror="__RDR_DIAG__.fail('BOOT 08 enterprise-overlays.js')"></script>
-  <script src="enterprise-ui.js?v=20260914.2" onload="__RDR_DIAG__.script('BOOT 09 UI')" onerror="__RDR_DIAG__.fail('BOOT 09 enterprise-ui.js')"></script>
-  <script src="alerts.js?v=20260914.2" onload="__RDR_DIAG__.script('BOOT 10 ALERTS')" onerror="__RDR_DIAG__.fail('BOOT 10 alerts.js')"></script>
-  <script src="hidpi.js?v=20260914.2" onload="__RDR_DIAG__.script('BOOT 11 HIDPI')" onerror="__RDR_DIAG__.fail('BOOT 11 hidpi.js')"></script>
-  <script src="vnext.js?v=20260914.2" onload="__RDR_DIAG__.script('BOOT 12 VNEXT')" onerror="__RDR_DIAG__.fail('BOOT 12 vnext.js')"></script>
-  <script src="vnext-motion.js?v=20260914.2" onload="__RDR_DIAG__.script('BOOT 13 MOTION')" onerror="__RDR_DIAG__.fail('BOOT 13 vnext-motion.js')"></script>
-  <script src="alert-copy.js?v=20260914.2" onload="__RDR_DIAG__.script('BOOT 14 COPY')" onerror="__RDR_DIAG__.fail('BOOT 14 alert-copy.js')"></script>
-  <script src="app.js?v=20260914.2" onload="__RDR_DIAG__.script('BOOT 15 APP')" onerror="__RDR_DIAG__.fail('BOOT 15 app.js')"></script>
+  <script>(function(){var p=document.getElementById('panel'),b=document.getElementById('boot'),done=false;function fail(){if(done||!p||p.getAttribute('data-ready')==='true')return;done=true;p.setAttribute('data-ready','true');p.setAttribute('data-radar','unavailable');p.setAttribute('data-freshness','stale');if(b)b.className+=' off';}window.addEventListener('error',fail,true);setTimeout(fail,45000)}());</script>
+  <script src="core.js?v=20260915.1"></script>
+  <script src="radar.js?v=20260915.1"></script>
+  <script src="context.js?v=20260915.1"></script>
+  <script src="enterprise-core.js?v=20260915.1"></script>
+  <script src="enterprise-map.js?v=20260915.1"></script>
+  <script src="enterprise-overlays.js?v=20260915.1"></script>
+  <script src="enterprise-ui.js?v=20260915.1"></script>
+  <script src="alerts.js?v=20260915.1"></script>
+  <script src="hidpi.js?v=20260915.1"></script>
+  <script src="vnext.js?v=20260915.1"></script>
+  <script src="vnext-motion.js?v=20260915.1"></script>
+  <script src="alert-copy.js?v=20260915.1"></script>
+  <script src="app.js?v=20260915.1"></script>
 </body>
 </html>

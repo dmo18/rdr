@@ -204,23 +204,16 @@ async function decodePngToViews(meta, kind = 'radar') {
     prev.set(row);
     if (sy > 0 && sy % yieldEvery === 0) await radarYield();
   }
-  if (window.__RDR_DIAG__) window.__RDR_DIAG__.stage('RADAR 12 VIEW BUILD');
   const views = Object.fromEntries(samplers.map(s => [s.def.id, s.data]));
-  if (window.__RDR_DIAG__) window.__RDR_DIAG__.stage('RADAR 13 VIEWS READY');
   return views;
 }
 async function loadFieldKey(key, kind = 'radar') {
-  if (window.__RDR_DIAG__) window.__RDR_DIAG__.stage('RADAR 11 PAYLOAD REQUEST');
   const bytes = await fetchWithTimeout(`${CFG.mrmsBucket}/${key}`, {
     cache: 'no-store'
   }, 30000, r => r.arrayBuffer());
-  if (window.__RDR_DIAG__) window.__RDR_DIAG__.stage('RADAR 11 PAYLOAD ' + bytes.byteLength + 'B');
   const grib = await inflate(bytes, 'gzip');
-  if (window.__RDR_DIAG__) window.__RDR_DIAG__.stage('RADAR 11 GZIP ' + grib.byteLength + 'B');
   const meta = parseGrib(grib);
-  if (window.__RDR_DIAG__) window.__RDR_DIAG__.stage('RADAR 12 GRIB ' + meta.nx + 'x' + meta.ny);
   const views = await decodePngToViews(meta, kind);
-  if (window.__RDR_DIAG__) window.__RDR_DIAG__.stage('RADAR 13 FRAME DECODED');
   return {
     key,
     time: meta.ref,
@@ -386,7 +379,6 @@ async function backfillRadar() {
   if (state.radarBackfilling || !state.pendingRadarKeys || !state.pendingRadarKeys.length) return;
   state.radarBackfilling = true;
   try {
-    if (window.__RDR_DIAG__) window.__RDR_DIAG__.stage('RADAR BACKFILL');
     const queue = state.pendingRadarKeys.splice(0);
     for (const key of queue) {
       if (state.frames.some(f => f.key === key)) continue;
@@ -422,11 +414,9 @@ async function pollRadar({
   if (state.radarLoading) return;
   state.radarLoading = true;
   try {
-    if (window.__RDR_DIAG__) window.__RDR_DIAG__.stage('RADAR 10 MRMS LIST');
     const keys = await recentKeys(CFG.radarProduct, 5),
       have = new Set(state.frames.map(f => f.key)),
       newest = keys[keys.length - 1];
-    if (window.__RDR_DIAG__) window.__RDR_DIAG__.stage('RADAR 10 KEYS ' + keys.length);
     if (!newest) throw new Error('no current MRMS radar frames listed');
     if (newest && !have.has(newest)) {
       const f = await loadFieldKey(newest, 'radar');
@@ -435,7 +425,6 @@ async function pollRadar({
       state.frames = state.frames.slice(-5);
       state.cursor = state.frames.length - 1;
       deriveHome();
-      if (window.__RDR_DIAG__) window.__RDR_DIAG__.stage('RADAR 14 FRAME COMMITTED');
       render();
       if (initial) {
         panel.dataset.radar = 'live';
@@ -461,7 +450,6 @@ async function pollRadar({
       state.home.nearest = null;
       state.home.eta = null;
     }
-    if (window.__RDR_DIAG__) window.__RDR_DIAG__.fail('RADAR', e);
     retryRadarSoon();
     render();
   } finally {

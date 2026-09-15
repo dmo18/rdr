@@ -91,3 +91,11 @@ Production verification confirmed:
 ## Rollout state
 
 Enterprise v8 is the verified public production build on `main` and GitHub Pages.
+
+## Yodeck legacy-runtime incident, resolved 2026-09-15
+
+- Physical Yodeck validation passed after reboot on build `2026.09.14.2`: live radar/map rendered and the permanent Loading failure was gone.
+- The device reached the handled zero-frame path; `LIVE RADAR UNAVAILABLE` with a footer still reading Loading meant bootstrap/render had run but a radar frame had not committed.
+- The concrete compatibility gap was `Object.fromEntries` during decoded-view construction. Legacy Yodeck Chromium can lack it, causing the radar poll to degrade with no committed frame.
+- Production retains the `Object.fromEntries`, `Promise.allSettled`, `Array.prototype.at`, and `Array.prototype.flat` compatibility shims; bounded request/decompression recovery; cache-busted runtime assets; and the invisible startup fail-safe.
+- The temporary visible on-screen diagnostic overlay was removed after the physical pass. Build `2026.09.15.1` is the clean follow-up release.

@@ -28,7 +28,6 @@ if (!Object.fromEntries) Object.fromEntries = function (entries) {
   }
   return out;
 };
-if (window.__RDR_DIAG__) window.__RDR_DIAG__.stage('BOOT 02 SHIMS');
 
 function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
 function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
@@ -221,18 +220,11 @@ async function fetchWithTimeout(url, options = {}, ms = 15000, read = r => r) {
     }, timeout);
   });
   try {
-    if (window.__RDR_DIAG__ && url.indexOf('noaa-mrms') >= 0) window.__RDR_DIAG__.net('MRMS REQUEST');
     const request = _objectSpread({}, options);
     if (controller) request.signal = controller.signal;
     const r = await Promise.race([Promise.resolve().then(() => fetch(url, request)), expired]);
     if (!r.ok) throw new Error(`${r.status} ${url}`);
-    if (window.__RDR_DIAG__ && url.indexOf('noaa-mrms') >= 0) window.__RDR_DIAG__.net('MRMS HTTP ' + r.status);
-    const value = await Promise.race([Promise.resolve().then(() => read(r)), expired]);
-    if (window.__RDR_DIAG__ && url.indexOf('noaa-mrms') >= 0) window.__RDR_DIAG__.net('MRMS PAYLOAD OK');
-    return value;
-  } catch (e) {
-    if (window.__RDR_DIAG__) window.__RDR_DIAG__.fail('FETCH', e);
-    throw e;
+    return await Promise.race([Promise.resolve().then(() => read(r)), expired]);
   } finally {
     clearTimeout(timer);
   }
@@ -271,8 +263,8 @@ function loadCompatInflater() {
         reject(error);
       } else resolve(lib);
     };
-    s.onload = () => { if (window.__RDR_DIAG__) window.__RDR_DIAG__.stage('BOOT 12 FFLATE LOADED'); return window.fflate ? finish(null, window.fflate) : finish(new Error('fflate unavailable after load')); };
-    s.onerror = () => { if (window.__RDR_DIAG__) window.__RDR_DIAG__.fail('FFLATE SCRIPT'); return finish(new Error('unable to load decompression fallback')); };
+    s.onload = () => window.fflate ? finish(null, window.fflate) : finish(new Error('fflate unavailable after load'));
+    s.onerror = () => finish(new Error('unable to load decompression fallback'));
     timer = setTimeout(() => finish(new Error(`decompression fallback timeout after ${requestTimeout(15000)}ms`)), requestTimeout(15000));
     document.head.appendChild(s);
   });
@@ -280,8 +272,7 @@ function loadCompatInflater() {
   return compatInflaterPromise;
 }
 async function inflate(buf, kind) {
-  if (typeof DecompressionStream === 'function') { if (window.__RDR_DIAG__) window.__RDR_DIAG__.stage('RADAR DECOMP STREAM ' + kind); return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream(kind))).arrayBuffer(); }
-  if (window.__RDR_DIAG__) window.__RDR_DIAG__.stage('RADAR DECOMP FFLATE ' + kind);
+  if (typeof DecompressionStream === 'function') return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream(kind))).arrayBuffer();
   const lib = await loadCompatInflater(),
     input = new Uint8Array(buf),
     decode = kind === 'gzip' ? lib.gunzip : kind === 'deflate' ? lib.unzlib : null;

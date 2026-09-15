@@ -82,7 +82,6 @@ async function deferredSevere() {
   loadSevere().catch(e => state.errors.push(String(e)));
 }
 async function init() {
-  if (window.__RDR_DIAG__) window.__RDR_DIAG__.stage('BOOT 10 INIT START');
   fitPanel();
   addEventListener('resize', fitPanel, {
     passive: true
@@ -115,7 +114,6 @@ async function init() {
   panel.dataset.runtime = state.runtime.lowPower ? 'low-power' : 'standard';
   boot.classList.add('off');
   window.__RDR__ = state;
-  if (window.__RDR_DIAG__) window.__RDR_DIAG__.stage('BOOT 14 READY');
   render();
   startAnimation();
   scheduleRotation();
@@ -135,7 +133,6 @@ init().catch(e => {
   panel.dataset.radar = 'unavailable';
   panel.dataset.freshness = 'stale';
   state.home.status = 'UNAVAILABLE';
-  if (window.__RDR_DIAG__) window.__RDR_DIAG__.fail('INIT', e);
   boot.classList.add('off');
   window.__RDR__ = state;
   render();
