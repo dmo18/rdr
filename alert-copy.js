@@ -9,7 +9,7 @@ function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t =
 function _defineProperty(e, r, t) { return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: !0, configurable: !0, writable: !0 }) : e[r] = t, e; }
 function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == typeof i ? i : i + ""; }
 function _toPrimitive(t, r) { if ("object" != typeof t || !t) return t; var e = t[Symbol.toPrimitive]; if (void 0 !== e) { var i = e.call(t, r || "default"); if ("object" != typeof i) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === r ? String : Number)(t); }
-const ALERT_COPY_BUILD = 'alert-copy-2026.09.16.2';
+const ALERT_COPY_BUILD = 'alert-copy-2026.09.16.3';
 function rdrAlertNoun(meta, count = 1) {
   if (meta !== null && meta !== void 0 && meta.isWarning) return count === 1 ? 'WARNING' : 'WARNINGS';
   if (meta !== null && meta !== void 0 && meta.isWatch) return count === 1 ? 'WATCH' : 'WATCHES';

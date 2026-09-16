@@ -19,7 +19,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'data-copy="alert-copy-2026.09.16.2"' index.html
+          grep -q 'data-copy="alert-copy-2026.09.16.3"' index.html
           grep -Eq 'alert-copy\.js\?v=[0-9]+' index.html
           grep -Eq "alertCounterPolicy[[:space:]]*=[[:space:]]*'typed-counts-only'" alert-copy.js
           grep -Eq 'ambiguousPlusCounter[[:space:]]*=[[:space:]]*false' alert-copy.js
@@ -53,7 +53,7 @@ jobs:
           const base=process.env.RDR_URL||'http://127.0.0.1:8765/';
           const outDir=process.env.RDR_OUT||'/tmp/rdr-alert-copy/local';
           const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
-          const waitReady=page=>page.waitForFunction(()=>{const p=document.querySelector('#panel'),s=window.__RDR__,b=s?.boundaries?.get('home');return p?.dataset?.copy==='alert-copy-2026.09.16.2'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(b?.states?.length||0)>=1},{timeout:180000,polling:250});
+          const waitReady=page=>page.waitForFunction(()=>{const p=document.querySelector('#panel'),s=window.__RDR__,b=s?.boundaries?.get('home');return p?.dataset?.copy==='alert-copy-2026.09.16.3'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(b?.states?.length||0)>=1},{timeout:180000,polling:250});
           const inject=async(page,svrCount,advCount)=>page.evaluate(({svrCount,advCount})=>{
             const box=(w,s,e,n)=>({type:'Polygon',coordinates:[[[w,s],[e,s],[e,n],[w,n],[w,s]]]}),future=new Date(Date.now()+45*60*1000).toISOString();
             state.warnings.clear();
@@ -88,7 +88,7 @@ jobs:
           set -euo pipefail
           for i in $(seq 1 72); do
             body=$(curl -fsSL "https://dmo18.github.io/rdr/?copy=${GITHUB_SHA}-${i}" || true)
-            if printf '%s' "$body" | grep -q 'data-copy="alert-copy-2026.09.16.2"'; then exit 0; fi
+            if printf '%s' "$body" | grep -q 'data-copy="alert-copy-2026.09.16.3"'; then exit 0; fi
             sleep 5
           done
           echo 'Pages did not publish alert copy policy' >&2
