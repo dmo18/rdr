@@ -49,6 +49,9 @@ const CFG = {
   severeMs: 180000,
   radarFrameMs: 1100,
   radarBlendMs: 420,
+  radarObservedFrames: 5,
+  motionExtrapolationMinutes: 45,
+  motionMaxAgeMs: 480000,
   animFps: 15,
   views: [{
     id: 'home',
@@ -105,6 +108,15 @@ const state = {
   view: 0,
   cursor: 0,
   frames: [],
+  // Observed MRMS frames only. Forecast motion is deliberately kept separate
+  // so no extrapolation can be mistaken for an observation.
+  lastGoodFrames: [],
+  motionOverlay: {
+    kind: 'extrapolated',
+    suppressed: true,
+    confidence: 0,
+    reason: 'awaiting-observed-frames'
+  },
   radarLoading: false,
   radarBackfilling: false,
   pendingRadarKeys: [],
@@ -132,6 +144,7 @@ const state = {
   animTimer: null,
   pollTimer: null,
   radarRetryTimer: null,
+  radarBackfillRetryTimer: null,
   vectorTimer: null,
   severeTimer: null,
   errors: [],

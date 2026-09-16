@@ -433,7 +433,7 @@ function vHomeText() {
   }
   if (n) return {
     main: 'DRY',
-    sub: [`RAIN ${Math.max(1, Math.round(n.miles))} MI ${n.dir}${e ? ` ETA ${e.minutes}m` : ''}`, ...extras].filter(Boolean).join('  •  ')
+    sub: [`RAIN ${Math.max(1, Math.round(n.miles))} MI ${n.dir}${e ? ` EST ETA ~${e.minutes}m` : ''}`, ...extras].filter(Boolean).join('  •  ')
   };
   return {
     main: 'DRY',
@@ -572,27 +572,46 @@ function vFooter() {
   ctx.stroke();
   ctx.fillStyle = '#748f9b';
   ctx.font = '800 4.35px Arial,Helvetica,sans-serif';
-  ctx.fillText('RADAR LOOP', 164, 226);
+  ctx.fillText('OBSERVED LOOP', 164, 226);
   const frames = state.frames,
     shown = displayedFrame(),
-    x0 = 222,
-    y = 226;
+    overlay = state.motionOverlay || {},
+    x0 = 166,
+    railWidth = 148,
+    y = 232;
   ctx.fillStyle = 'rgba(134,158,168,.32)';
-  ctx.fillRect(x0, y - .6, 90, 1.2);
+  ctx.fillRect(x0, y - .6, railWidth, 1.2);
+  const progress = frames.length > 1 ? clamp(state.cursor, 0, frames.length - 1) / (frames.length - 1) : 0;
+  ctx.fillStyle = 'rgba(126,217,244,.65)';
+  ctx.fillRect(x0, y - .6, railWidth * progress, 1.2);
   for (let i = 0; i < frames.length; i++) {
-    const x = x0 + (frames.length === 1 ? 45 : i / (frames.length - 1) * 90),
+    const x = x0 + (frames.length === 1 ? railWidth / 2 : i / (frames.length - 1) * railWidth),
       sel = shown && frames[i].key === shown.key;
     ctx.beginPath();
     ctx.fillStyle = sel ? '#effbff' : '#617b86';
     ctx.arc(x, y, sel ? 1.85 : 1.05, 0, Math.PI * 2);
     ctx.fill();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = sel ? '#dcebf0' : '#8ea6af';
+    ctx.font = '700 3.7px Arial,Helvetica,sans-serif';
+    ctx.fillText(utcTime(frames[i].time).replace('Z', ''), x, 239.5);
   }
   ctx.textAlign = 'right';
-  ctx.fillStyle = '#b8c7cd';
-  ctx.font = '700 4.25px Arial,Helvetica,sans-serif';
-  ctx.fillText(shown ? utcTime(shown.time) : '--:--Z', 326, 226);
+  ctx.fillStyle = overlay.suppressed ? '#8398a1' : '#bfeaf4';
+  ctx.font = '800 3.8px Arial,Helvetica,sans-serif';
+  ctx.fillText(overlay.suppressed ? `EXTRAPOLATION SUPPRESSED${overlay.reason === 'stale-observation' ? ' • STALE' : ''}` : `EXTRAPOLATED +${overlay.minutes}M ${motionConfidenceLabel(overlay.confidence)}`, 326, 226);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#b7cbd1';
+  ctx.font = '700 3.7px Arial,Helvetica,sans-serif';
+  const firstObserved = frames.length ? frames[0].time : null,
+    lastObserved = frames.length ? frames[frames.length - 1].time : null;
+  ctx.fillText(firstObserved && lastObserved ? `OBSERVED ${utcTime(firstObserved)}–${utcTime(lastObserved)}  •  FRAME ${state.cursor + 1} OF ${frames.length}` : 'OBSERVED --:--Z', 166, 243);
+  if (!overlay.suppressed && overlay.observedTime) {
+    ctx.fillStyle = '#a4ddeb';
+    ctx.fillText(`ESTIMATED ${utcTime(new Date(overlay.observedTime.getTime() + overlay.minutes * 60000))}`, 326, 243);
+  }
   const lx = 166,
-    ly = 235,
+    ly = 246,
     lw = 116,
     vals = [8, 18, 28, 38, 48, 58, 68];
   for (let i = 0; i < vals.length; i++) {
@@ -603,13 +622,13 @@ function vFooter() {
   ctx.textAlign = 'left';
   ctx.fillStyle = '#a9bac1';
   ctx.font = '700 4.1px Arial,Helvetica,sans-serif';
-  ctx.fillText('LIGHT', 166, 246.5);
+  ctx.fillText('LIGHT', 166, 252);
   ctx.textAlign = 'center';
-  ctx.fillText('RAIN', 224, 246.5);
+  ctx.fillText('RAIN', 224, 252);
   ctx.textAlign = 'right';
-  ctx.fillText('INTENSE', 282, 246.5);
+  ctx.fillText('INTENSE', 282, 252);
   ctx.textAlign = 'left';
-  ctx.fillText('dBZ', 287, 237.5);
+  ctx.fillText('dBZ', 287, 248.5);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#748f9b';
   ctx.font = '800 4.35px Arial,Helvetica,sans-serif';
@@ -650,6 +669,7 @@ function vRender(now = performance.now()) {
     const base = eBase();
     ctx.drawImage(base, 0, 0, CFG.width, CFG.height);
     eRadar(now);
+    if (typeof eMotionOverlay === 'function') eMotionOverlay();
     const lines = eLines();
     ctx.drawImage(lines, 0, 0, CFG.width, CFG.height);
     eDrawTropics();

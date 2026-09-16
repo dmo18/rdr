@@ -321,10 +321,8 @@ function localCentroid(frame, center, radius = 65, threshold = 18) {
     count
   } : null;
 }
-function deriveMotion(nearest = null) {
-  if (state.frames.length < 2) return null;
-  const a = state.frames[state.frames.length - 2],
-    b = state.frames[state.frames.length - 1];
+function deriveMotionBetween(a, b, nearest = null) {
+  if (!a || !b) return null;
   let ca = null,
     cb = null;
   if (nearest) {
@@ -350,24 +348,93 @@ function deriveMotion(nearest = null) {
     dir: dir8(brg)
   };
 }
+function deriveMotion(nearest = null) {
+  if (state.frames.length < 2) return null;
+  return deriveMotionBetween(state.frames[state.frames.length - 2], state.frames[state.frames.length - 1], nearest);
+}
+function destination(point, miles, heading) {
+  const angular = miles / 3958.7613,
+    brg = heading * Math.PI / 180,
+    lat = point.lat * Math.PI / 180,
+    lon = point.lon * Math.PI / 180,
+    outLat = Math.asin(Math.sin(lat) * Math.cos(angular) + Math.cos(lat) * Math.sin(angular) * Math.cos(brg)),
+    outLon = lon + Math.atan2(Math.sin(brg) * Math.sin(angular) * Math.cos(lat), Math.cos(angular) - Math.sin(lat) * Math.sin(outLat));
+  return {
+    lat: outLat * 180 / Math.PI,
+    lon: (outLon * 180 / Math.PI + 540) % 360 - 180
+  };
+}
+function deriveMotionOverlay(nearest, motion) {
+  const frames = state.frames,
+    latest = frames.length ? frames[frames.length - 1] : null,
+    base = {
+      kind: 'extrapolated',
+      minutes: CFG.motionExtrapolationMinutes,
+      confidence: 0,
+      suppressed: true,
+      reason: 'awaiting-observed-frames'
+    };
+  if (!latest || freshness() === 'stale' || ageMs() > CFG.motionMaxAgeMs) return _objectSpread(_objectSpread({}, base), {}, {
+    reason: 'stale-observation'
+  });
+  if (frames.length < 3) return base;
+  if (!motion || !Number.isFinite(motion.mph) || !Number.isFinite(motion.bearing)) return _objectSpread(_objectSpread({}, base), {}, {
+    reason: 'no-coherent-motion'
+  });
+  const older = frames[frames.length - 3],
+    middle = frames[frames.length - 2],
+    previous = deriveMotionBetween(older, middle, nearest),
+    gapA = middle.time - older.time,
+    gapB = latest.time - middle.time,
+    cadence = gapA >= 120000 && gapA <= 900000 && gapB >= 120000 && gapB <= 900000,
+    directionStable = previous && angleDiff(previous.bearing, motion.bearing) <= 45,
+    speedStable = previous && Math.abs(previous.mph - motion.mph) <= Math.max(12, motion.mph * .65);
+  let confidence = .5;
+  if (cadence) confidence += .2;
+  if (directionStable) confidence += .18;
+  if (speedStable) confidence += .12;
+  confidence = Math.round(clamp(confidence, 0, 1) * 100);
+  if (!cadence || !directionStable || confidence < 75) return _objectSpread(_objectSpread({}, base), {}, {
+    confidence,
+    reason: 'low-confidence-motion'
+  });
+  const miles = motion.mph * CFG.motionExtrapolationMinutes / 60;
+  return {
+    kind: 'extrapolated',
+    minutes: CFG.motionExtrapolationMinutes,
+    confidence,
+    suppressed: false,
+    reason: null,
+    observedTime: latest.time,
+    from: motion.to,
+    to: destination(motion.to, miles, motion.bearing),
+    bearing: motion.bearing,
+    mph: motion.mph
+  };
+}
+function motionConfidenceLabel(confidence) {
+  const n = Number(confidence) || 0;
+  return n >= 85 ? 'HIGH' : n >= 75 ? 'MEDIUM' : 'LOW';
+}
 function deriveHome() {
   const f = state.frames.length ? state.frames[state.frames.length - 1] : null;
   if (!f) return;
   const dbz = sampleHome(f),
     nearest = dbz < 5 ? nearestRain(f) : null,
     motion = deriveMotion(nearest);
+  state.motion = motion;
+  state.motionOverlay = deriveMotionOverlay(nearest, motion);
   let eta = null;
-  if (motion && nearest) {
+  if (motion && nearest && state.motionOverlay && !state.motionOverlay.suppressed) {
     const toward = bearing(nearest, CFG.home),
       diff = angleDiff(motion.bearing, toward),
       closing = motion.mph * Math.cos(diff * Math.PI / 180),
       mins = nearest.miles / Math.max(1, closing) * 60;
     if (diff < 55 && closing > 3 && nearest.miles < 150 && mins > 0 && mins < 180) eta = {
-      minutes: Math.round(mins),
+      minutes: Math.max(5, Math.round(mins / 5) * 5),
       miles: nearest.miles
     };
   }
-  state.motion = motion;
   state.home = {
     dbz,
     status: classifyDbz(dbz),
@@ -375,28 +442,70 @@ function deriveHome() {
     eta
   };
 }
+function validObservedFrame(frame) {
+  return !!(frame && frame.key && frame.time instanceof Date && Number.isFinite(frame.time.getTime()) && frame.views && frame.views.home && frame.views.metro);
+}
+function commitObservedFrame(frame) {
+  if (!validObservedFrame(frame)) throw new Error('invalid observed radar frame');
+  const frames = state.frames.filter(f => f.key !== frame.key);
+  frames.push(frame);
+  frames.sort((a, b) => a.time - b.time || (String(a.key) < String(b.key) ? -1 : String(a.key) > String(b.key) ? 1 : 0));
+  state.frames = frames.slice(-CFG.radarObservedFrames);
+  state.lastGoodFrames = state.frames.slice();
+  panel.dataset.fallback = 'none';
+  state.cursor = state.frames.length - 1;
+  panel.dataset.observedFrames = String(state.frames.length);
+  panel.dataset.loop = `observed-${state.frames.length}-of-${CFG.radarObservedFrames}`;
+  deriveHome();
+  return frame;
+}
+function restoreLastGoodFrames() {
+  if (state.frames.length || !state.lastGoodFrames.length) return false;
+  state.frames = state.lastGoodFrames.slice(-CFG.radarObservedFrames);
+  state.cursor = Math.max(0, state.frames.length - 1);
+  panel.dataset.observedFrames = String(state.frames.length);
+  panel.dataset.loop = `observed-${state.frames.length}-of-${CFG.radarObservedFrames}`;
+  panel.dataset.fallback = 'last-good-observed';
+  deriveHome();
+  return !!state.frames.length;
+}
+function queueObservedKeys(keys) {
+  const wanted = keys.slice(-CFG.radarObservedFrames),
+    known = new Set(state.frames.map(f => f.key));
+  state.pendingRadarKeys = wanted.filter(key => !known.has(key));
+  return state.pendingRadarKeys;
+}
 async function backfillRadar() {
   if (state.radarBackfilling || !state.pendingRadarKeys || !state.pendingRadarKeys.length) return;
   state.radarBackfilling = true;
   try {
-    const queue = state.pendingRadarKeys.splice(0);
+    const queue = state.pendingRadarKeys.splice(0),
+      failed = [];
     for (const key of queue) {
       if (state.frames.some(f => f.key === key)) continue;
       try {
         const f = await loadFieldKey(key, 'radar');
-        state.frames.push(f);
-        state.frames.sort((a, b) => a.time - b.time);
-        state.frames = state.frames.slice(-5);
-        state.cursor = state.frames.length - 1;
-        deriveHome();
+        commitObservedFrame(f);
         render();
         await new Promise(resolve => setTimeout(resolve, state.runtime && state.runtime.lowPower ? 300 : 50));
       } catch (e) {
         state.errors.push(`radar backfill: ${e}`);
+        failed.push(key);
       }
+    }
+    // Keep an incomplete observed window eligible for a measured retry. This
+    // is especially important when a just-listed MRMS object is briefly not
+    // readable yet; one bad historical object never discards good frames.
+    if (failed.length) {
+      const retryKeys = failed.concat(state.pendingRadarKeys);
+      state.pendingRadarKeys = retryKeys.filter((key, index) => retryKeys.indexOf(key) === index);
     }
   } finally {
     state.radarBackfilling = false;
+    if (state.pendingRadarKeys.length && !state.radarBackfillRetryTimer) state.radarBackfillRetryTimer = setTimeout(() => {
+      state.radarBackfillRetryTimer = null;
+      backfillRadar().catch(e => state.errors.push(`radar backfill retry: ${e}`));
+    }, state.runtime && state.runtime.lowPower ? 30000 : 15000);
   }
 }
 function retryRadarSoon() {
@@ -414,17 +523,13 @@ async function pollRadar({
   if (state.radarLoading) return;
   state.radarLoading = true;
   try {
-    const keys = await recentKeys(CFG.radarProduct, 5),
+    const keys = await recentKeys(CFG.radarProduct, CFG.radarObservedFrames),
       have = new Set(state.frames.map(f => f.key)),
       newest = keys[keys.length - 1];
     if (!newest) throw new Error('no current MRMS radar frames listed');
     if (newest && !have.has(newest)) {
       const f = await loadFieldKey(newest, 'radar');
-      state.frames.push(f);
-      state.frames.sort((a, b) => a.time - b.time);
-      state.frames = state.frames.slice(-5);
-      state.cursor = state.frames.length - 1;
-      deriveHome();
+      commitObservedFrame(f);
       render();
       if (initial) {
         panel.dataset.radar = 'live';
@@ -435,14 +540,16 @@ async function pollRadar({
       state.radarRetryTimer = null;
     }
     state.lastListError = null;
-    if (initial && !verifyMode) {
-      const historyCount = state.runtime && state.runtime.lowPower ? 2 : 3;
-      state.pendingRadarKeys = keys.slice(0, -1).slice(-historyCount).reverse().filter(key => !state.frames.some(f => f.key === key));
-      setTimeout(() => backfillRadar().catch(e => state.errors.push(String(e))), state.runtime && state.runtime.lowPower ? 2200 : 900);
-    }
+    if (state.frames.length) panel.dataset.radar = freshness() === 'stale' ? 'degraded' : 'live';
+    // Always retain a five-frame observed window. Loading remains sequential,
+    // with a longer idle gap on low-power players, so it cannot compete with
+    // the current observation or create concurrent decoder work.
+    queueObservedKeys(keys);
+    if (state.pendingRadarKeys.length && !verifyMode) setTimeout(() => backfillRadar().catch(e => state.errors.push(String(e))), state.runtime && state.runtime.lowPower ? 2200 : initial ? 900 : 250);
   } catch (e) {
     state.lastListError = e;
     state.errors.push(String(e));
+    if (restoreLastGoodFrames() || state.frames.length) panel.dataset.fallback = 'last-good-observed';
     panel.dataset.radar = state.frames.length ? 'degraded' : 'unavailable';
     if (!state.frames.length) {
       state.home.status = 'UNAVAILABLE';

@@ -104,7 +104,7 @@ async function init() {
     panel.dataset.freshness = 'stale';
     state.home.status = 'UNAVAILABLE';
   } else {
-    panel.dataset.radar = 'live';
+    panel.dataset.radar = state.lastListError || freshness() === 'stale' ? 'degraded' : 'live';
     panel.dataset.freshness = freshness();
     state.cursor = Math.max(0, state.frames.length - 1);
     deriveHome();

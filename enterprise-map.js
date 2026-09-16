@@ -291,6 +291,37 @@ function eRadar(now = performance.now()) {
   ctx.globalAlpha = 1;
   ctx.restore();
 }
+function eMotionOverlay(def = view()) {
+  const o = state.motionOverlay;
+  if (!o || o.kind !== 'extrapolated' || o.suppressed || !o.from || !o.to) return;
+  const a = mapXY(o.from.lat, o.from.lon, def),
+    b = mapXY(o.to.lat, o.to.lon, def);
+  // A fixed, single vector is intentional: it is the low-power forecast
+  // affordance, never a sixth radar image or an animated synthetic field.
+  if ((a.x < -12 && b.x < -12) || (a.x > CFG.width + 12 && b.x > CFG.width + 12) || (a.y < E_MAP_TOP - 12 && b.y < E_MAP_TOP - 12) || (a.y > E_MAP_BOTTOM + 12 && b.y > E_MAP_BOTTOM + 12)) return;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(183,229,242,.82)';
+  ctx.fillStyle = 'rgba(214,243,249,.9)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 2]);
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  const angle = Math.atan2(b.y - a.y, b.x - a.x);
+  ctx.beginPath();
+  ctx.moveTo(b.x, b.y);
+  ctx.lineTo(b.x - Math.cos(angle - .48) * 4, b.y - Math.sin(angle - .48) * 4);
+  ctx.lineTo(b.x - Math.cos(angle + .48) * 4, b.y - Math.sin(angle + .48) * 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.font = '800 4.2px Arial,Helvetica,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(`EXTRAPOLATED +${o.minutes}M`, clamp(b.x, 28, CFG.width - 28), clamp(b.y - 4, E_MAP_TOP + 7, E_MAP_BOTTOM - 3));
+  ctx.restore();
+}
 function ePeak(field, def = view(), threshold = 50, count = 3) {
   var _field$views;
   if (!field) return [];
