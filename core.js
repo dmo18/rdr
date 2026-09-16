@@ -210,6 +210,33 @@ function utcTime(d) {
     hour12: false
   }) + 'Z' : '--:--Z';
 }
+/* Presentation only: MRMS timestamps remain source UTC Date values. Intl uses
+ * the Olson zone when available; old signage Chromium gets a DST-rule fallback. */
+function radarTimeET(d) {
+  if (!(d && Number.isFinite(d.getTime()))) return '--:-- ET';
+  try {
+    if (typeof Intl !== 'undefined' && Intl.DateTimeFormat) {
+      const out = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true
+      }).format(d);
+      if (out) return String(out).replace(/\s+/g, ' ').trim() + ' ET';
+    }
+  } catch (ignore) {}
+  const year = d.getUTCFullYear(),
+    marchFirst = new Date(Date.UTC(year, 2, 1)).getUTCDay(),
+    novemberFirst = new Date(Date.UTC(year, 10, 1)).getUTCDay(),
+    dstStart = Date.UTC(year, 2, 1 + (7 - marchFirst) % 7 + 7, 7),
+    dstEnd = Date.UTC(year, 10, 1 + (7 - novemberFirst) % 7, 6),
+    eastern = new Date(d.getTime() + (d.getTime() >= dstStart && d.getTime() < dstEnd ? -4 : -5) * 3600000),
+    hour = eastern.getUTCHours(), minute = eastern.getUTCMinutes(),
+    suffix = hour >= 12 ? 'PM' : 'AM', displayHour = hour % 12 || 12;
+  return `${displayHour}:${minute < 10 ? '0' : ''}${minute} ${suffix} ET`;
+}
+function radarEtaTime(eta, observedTime) {
+  const minutes = eta && Number(eta.minutes);
+  if (!(minutes > 0) || !(observedTime && Number.isFinite(observedTime.getTime()))) return null;
+  return radarTimeET(new Date(observedTime.getTime() + minutes * 60000));
+}
 function dayStamp(d = new Date()) {
   return d.toISOString().slice(0, 10).replace(/-/g, '');
 }

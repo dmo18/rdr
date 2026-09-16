@@ -410,7 +410,7 @@ function eHeader() {
   ctx.fill();
   ctx.fillStyle = '#c8d5da';
   ctx.font = '800 4.8px Arial,Helvetica,sans-serif';
-  ctx.fillText(`${fresh.toUpperCase()}${latest ? `  ${utcTime(latest)}${age != null ? `  ${age}m` : ''}` : ''}`, 72, 19.4);
+  ctx.fillText(`${fresh.toUpperCase()}${latest ? `  ${radarTimeET(latest)}${age != null ? `  ${age}m` : ''}` : ''}`, 72, 19.4);
   if (local) {
     ctx.fillStyle = lm.color;
     ctx.font = '900 5.2px Arial,Helvetica,sans-serif';

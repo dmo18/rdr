@@ -13,7 +13,7 @@ function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t =
 function _defineProperty(e, r, t) { return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: !0, configurable: !0, writable: !0 }) : e[r] = t, e; }
 function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == typeof i ? i : i + ""; }
 function _toPrimitive(t, r) { if ("object" != typeof t || !t) return t; var e = t[Symbol.toPrimitive]; if (void 0 !== e) { var i = e.call(t, r || "default"); if ("object" != typeof i) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === r ? String : Number)(t); }
-const V_UX_BUILD = 'vnext-2026.08.12.1';
+const V_UX_BUILD = 'vnext-2026.09.16.2';
 const V_MOTION_CACHE = new Map();
 function vEnsureUx() {
   if (!state.ux) state.ux = {};
@@ -433,7 +433,7 @@ function vHomeText() {
   }
   if (n) return {
     main: 'DRY',
-    sub: [`RAIN ${Math.max(1, Math.round(n.miles))} MI ${n.dir}${e ? ` EST ETA ~${e.minutes}m` : ''}`, ...extras].filter(Boolean).join('  •  ')
+    sub: [`RAIN ${Math.max(1, Math.round(n.miles))} MI ${n.dir}${e ? `  •  ETA ${radarEtaTime(e, state.frames.length ? state.frames[state.frames.length - 1].time : null) || `${e.minutes}M`}` : ''}`, ...extras].filter(Boolean).join('  •  ')
   };
   return {
     main: 'DRY',
@@ -503,9 +503,9 @@ function vHeader() {
   ctx.fillStyle = '#78d9f4';
   ctx.font = '800 5.5px Arial,Helvetica,sans-serif';
   ctx.fillText(view().name, 8, 20);
-  ctx.fillStyle = '#9cb1ba';
-  ctx.font = '700 4.45px Arial,Helvetica,sans-serif';
-  ctx.fillText(`MRMS ${latest ? utcTime(latest) : '--:--Z'}`, 118, 8.2);
+  ctx.fillStyle = '#dff5fa';
+  ctx.font = '900 6.1px Arial,Helvetica,sans-serif';
+  ctx.fillText(`OBSERVED ${latest ? radarTimeET(latest) : '--:-- ET'}`, 118, 8.2);
   ctx.fillStyle = fresh === 'live' ? '#54e895' : fresh === 'delayed' ? '#efca59' : '#f16e65';
   ctx.beginPath();
   ctx.arc(119.5, 19.6, 1.45, 0, Math.PI * 2);
@@ -550,19 +550,18 @@ function vFooter() {
   ctx.moveTo(0, E_FOOT_TOP + .5);
   ctx.lineTo(CFG.width, E_FOOT_TOP + .5);
   ctx.stroke();
-  const home = vHomeText(),
-    hz = vHazardText();
+  const home = vHomeText();
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#748f9b';
-  ctx.font = '800 4.35px Arial,Helvetica,sans-serif';
+  ctx.fillStyle = '#8eabb5';
+  ctx.font = '900 5px Arial,Helvetica,sans-serif';
   ctx.fillText('HOME IMPACT', 7, 226);
   ctx.fillStyle = home.main === 'DRY' ? '#7fdcf7' : home.main === 'LIGHT' ? '#78e59a' : home.main === 'RAIN' ? '#ffe05b' : home.main === 'HEAVY' ? '#ff8b52' : '#ff5e74';
-  ctx.font = '900 8.1px Arial,Helvetica,sans-serif';
+  ctx.font = '900 9px Arial,Helvetica,sans-serif';
   ctx.fillText(home.main, 7, 237);
   ctx.fillStyle = '#c1ced3';
-  ctx.font = '700 4.45px Arial,Helvetica,sans-serif';
-  ctx.fillText(eFitText(home.sub, 144, '700 4.45px Arial,Helvetica,sans-serif'), 7, 248.5);
+  ctx.font = '800 4.8px Arial,Helvetica,sans-serif';
+  ctx.fillText(eFitText(home.sub, 144, '800 4.8px Arial,Helvetica,sans-serif'), 7, 248.5);
   ctx.strokeStyle = 'rgba(121,151,163,.18)';
   ctx.beginPath();
   ctx.moveTo(155, 224);
@@ -570,75 +569,49 @@ function vFooter() {
   ctx.moveTo(333, 224);
   ctx.lineTo(333, 253);
   ctx.stroke();
-  ctx.fillStyle = '#748f9b';
-  ctx.font = '800 4.35px Arial,Helvetica,sans-serif';
+  ctx.fillStyle = '#bdeefa';
+  ctx.font = '900 5.1px Arial,Helvetica,sans-serif';
   ctx.fillText('OBSERVED LOOP', 164, 226);
   const frames = state.frames,
     shown = displayedFrame(),
     overlay = state.motionOverlay || {},
     x0 = 166,
     railWidth = 148,
-    y = 232;
+    y = 233;
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#dcebf0';
+  ctx.font = '900 4.6px Arial,Helvetica,sans-serif';
+  ctx.fillText(`FRAME ${frames.length ? state.cursor + 1 : 0} OF ${frames.length}`, 326, 226);
   ctx.fillStyle = 'rgba(134,158,168,.32)';
-  ctx.fillRect(x0, y - .6, railWidth, 1.2);
+  ctx.fillRect(x0, y - 1, railWidth, 2);
   const progress = frames.length > 1 ? clamp(state.cursor, 0, frames.length - 1) / (frames.length - 1) : 0;
   ctx.fillStyle = 'rgba(126,217,244,.65)';
-  ctx.fillRect(x0, y - .6, railWidth * progress, 1.2);
+  ctx.fillRect(x0, y - 1, railWidth * progress, 2);
   for (let i = 0; i < frames.length; i++) {
     const x = x0 + (frames.length === 1 ? railWidth / 2 : i / (frames.length - 1) * railWidth),
       sel = shown && frames[i].key === shown.key;
     ctx.beginPath();
     ctx.fillStyle = sel ? '#effbff' : '#617b86';
-    ctx.arc(x, y, sel ? 1.85 : 1.05, 0, Math.PI * 2);
+    ctx.arc(x, y, sel ? 2.5 : 1.35, 0, Math.PI * 2);
     ctx.fill();
-    ctx.textAlign = 'center';
-    ctx.fillStyle = sel ? '#dcebf0' : '#8ea6af';
-    ctx.font = '700 3.7px Arial,Helvetica,sans-serif';
-    ctx.fillText(utcTime(frames[i].time).replace('Z', ''), x, 239.5);
   }
-  ctx.textAlign = 'right';
-  ctx.fillStyle = overlay.suppressed ? '#8398a1' : '#bfeaf4';
-  ctx.font = '800 3.8px Arial,Helvetica,sans-serif';
-  ctx.fillText(overlay.suppressed ? `EXTRAPOLATION SUPPRESSED${overlay.reason === 'stale-observation' ? ' • STALE' : ''}` : `EXTRAPOLATED +${overlay.minutes}M ${motionConfidenceLabel(overlay.confidence)}`, 326, 226);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#b7cbd1';
-  ctx.font = '700 3.7px Arial,Helvetica,sans-serif';
+  ctx.font = '800 4px Arial,Helvetica,sans-serif';
   const firstObserved = frames.length ? frames[0].time : null,
     lastObserved = frames.length ? frames[frames.length - 1].time : null;
-  ctx.fillText(firstObserved && lastObserved ? `OBSERVED ${utcTime(firstObserved)}–${utcTime(lastObserved)}  •  FRAME ${state.cursor + 1} OF ${frames.length}` : 'OBSERVED --:--Z', 166, 243);
-  if (!overlay.suppressed && overlay.observedTime) {
-    ctx.fillStyle = '#a4ddeb';
-    ctx.fillText(`ESTIMATED ${utcTime(new Date(overlay.observedTime.getTime() + overlay.minutes * 60000))}`, 326, 243);
-  }
-  const lx = 166,
-    ly = 246,
-    lw = 116,
-    vals = [8, 18, 28, 38, 48, 58, 68];
-  for (let i = 0; i < vals.length; i++) {
-    const c = eRadarColor(vals[i]);
-    ctx.fillStyle = `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
-    ctx.fillRect(lx + i * lw / vals.length, ly, Math.ceil(lw / vals.length), 4);
-  }
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#a9bac1';
-  ctx.font = '700 4.1px Arial,Helvetica,sans-serif';
-  ctx.fillText('LIGHT', 166, 252);
-  ctx.textAlign = 'center';
-  ctx.fillText('RAIN', 224, 252);
+  ctx.fillText(firstObserved ? radarTimeET(firstObserved) : '--:-- ET', 166, 246);
   ctx.textAlign = 'right';
-  ctx.fillText('INTENSE', 282, 252);
+  ctx.fillText(lastObserved ? radarTimeET(lastObserved) : '--:-- ET', 314, 246);
   ctx.textAlign = 'left';
-  ctx.fillText('dBZ', 287, 248.5);
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#748f9b';
-  ctx.font = '800 4.35px Arial,Helvetica,sans-serif';
-  ctx.fillText('HAZARDS', 342, 226);
-  ctx.fillStyle = hz.accent;
-  ctx.font = '900 7.6px Arial,Helvetica,sans-serif';
-  ctx.fillText(hz.main, 342, 237);
-  ctx.fillStyle = '#b1c1c7';
-  ctx.font = '700 4.25px Arial,Helvetica,sans-serif';
-  ctx.fillText(eFitText(hz.sub, 107, '700 4.25px Arial,Helvetica,sans-serif'), 342, 248.5);
+  ctx.fillStyle = overlay.suppressed ? '#e9a59f' : '#bfeaf4';
+  ctx.font = '900 4.7px Arial,Helvetica,sans-serif';
+  ctx.fillText('EXTRAPOLATED', 342, 226);
+  ctx.font = '900 5.4px Arial,Helvetica,sans-serif';
+  ctx.fillText(overlay.suppressed ? `UNAVAILABLE${overlay.reason === 'stale-observation' ? ' • STALE' : ''}` : `MOTION +${overlay.minutes} MIN`, 342, 237);
+  ctx.fillStyle = overlay.suppressed ? '#c8a29d' : '#a4ddeb';
+  ctx.font = '800 4.25px Arial,Helvetica,sans-serif';
+  ctx.fillText(!overlay.suppressed && overlay.observedTime ? `${motionConfidenceLabel(overlay.confidence)} CONF. • EST ${radarTimeET(new Date(overlay.observedTime.getTime() + overlay.minutes * 60000))}` : panel.dataset.fallback === 'last-good-observed' ? 'LAST GOOD SCAN' : 'MOTION NOT AVAILABLE', 342, 248.5);
 }
 function vAlertSummaryState() {
   var _sum$meta;

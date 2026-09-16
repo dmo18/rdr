@@ -9,7 +9,7 @@ function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t =
 function _defineProperty(e, r, t) { return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: !0, configurable: !0, writable: !0 }) : e[r] = t, e; }
 function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == typeof i ? i : i + ""; }
 function _toPrimitive(t, r) { if ("object" != typeof t || !t) return t; var e = t[Symbol.toPrimitive]; if (void 0 !== e) { var i = e.call(t, r || "default"); if ("object" != typeof i) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === r ? String : Number)(t); }
-const ALERT_COPY_BUILD = 'alert-copy-2026.08.12.1';
+const ALERT_COPY_BUILD = 'alert-copy-2026.09.16.2';
 function rdrAlertNoun(meta, count = 1) {
   if (meta !== null && meta !== void 0 && meta.isWarning) return count === 1 ? 'WARNING' : 'WARNINGS';
   if (meta !== null && meta !== void 0 && meta.isWatch) return count === 1 ? 'WATCH' : 'WATCHES';
@@ -104,15 +104,15 @@ if (typeof vHeader === 'function') {
     ctx.fillStyle = '#78d9f4';
     ctx.font = '800 5.5px Arial,Helvetica,sans-serif';
     ctx.fillText(view().name, 8, 20);
-    ctx.fillStyle = '#9cb1ba';
-    ctx.font = '700 4.45px Arial,Helvetica,sans-serif';
-    ctx.fillText(`OBSERVED ${latest ? utcTime(latest) : '--:--Z'}`, 118, 8.2);
+    ctx.fillStyle = '#dff5fa';
+    ctx.font = '900 6.1px Arial,Helvetica,sans-serif';
+    ctx.fillText(`OBSERVED ${latest ? radarTimeET(latest) : '--:-- ET'}`, 118, 8.2);
     ctx.fillStyle = fresh === 'live' ? '#54e895' : fresh === 'delayed' ? '#efca59' : '#f16e65';
     ctx.beginPath();
     ctx.arc(119.5, 19.6, 1.45, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#cbd7dc';
-    ctx.font = '800 4.65px Arial,Helvetica,sans-serif';
+    ctx.font = '900 5.15px Arial,Helvetica,sans-serif';
     ctx.fillText(`${fresh.toUpperCase()}${age != null ? `  ${age}m` : ''}${panel.dataset.fallback === 'last-good-observed' ? '  •  LAST GOOD SCAN' : ''}`, 124, 19.6);
     ux.alertHeaderText = '';
     if (sum) {
