@@ -25,7 +25,7 @@ function eHeader() {
   ctx.fillText(view().name, 9, 19.6);
   ctx.fillStyle = '#9fb2bb';
   ctx.font = '700 4.6px Arial,Helvetica,sans-serif';
-  ctx.fillText('MRMS REFLECTIVITY', 65, 8.3);
+  ctx.fillText('OBSERVED MRMS REFLECTIVITY', 65, 8.3);
   ctx.fillStyle = fresh === 'live' ? '#53e895' : fresh === 'delayed' ? '#f0c756' : '#f06a62';
   ctx.beginPath();
   ctx.arc(67, 19.4, 1.6, 0, Math.PI * 2);
@@ -143,27 +143,36 @@ function eFooter() {
   ctx.stroke();
   ctx.fillStyle = '#76909b';
   ctx.font = '800 4.5px Arial,Helvetica,sans-serif';
-  ctx.fillText('RADAR LOOP', 165, 226);
+  ctx.fillText('OBSERVED LOOP', 165, 226);
   const frames = state.frames,
     shown = displayedFrame(),
-    x0 = 222,
-    y = 226;
+    overlay = state.motionOverlay || {},
+    x0 = 166,
+    railWidth = 148,
+    y = 232;
   ctx.fillStyle = 'rgba(134,158,168,.35)';
-  ctx.fillRect(x0, y - .7, 90, 1.4);
+  ctx.fillRect(x0, y - .7, railWidth, 1.4);
+  const progress = frames.length > 1 ? clamp(state.cursor, 0, frames.length - 1) / (frames.length - 1) : 0;
+  ctx.fillStyle = 'rgba(126,217,244,.65)';
+  ctx.fillRect(x0, y - .7, railWidth * progress, 1.4);
   for (let i = 0; i < frames.length; i++) {
-    const x = x0 + (frames.length === 1 ? 45 : i / (frames.length - 1) * 90),
+    const x = x0 + (frames.length === 1 ? railWidth / 2 : i / (frames.length - 1) * railWidth),
       sel = shown && frames[i].key === shown.key;
     ctx.beginPath();
     ctx.fillStyle = sel ? '#eaf7fb' : '#617b86';
     ctx.arc(x, y, sel ? 2 : 1.25, 0, Math.PI * 2);
     ctx.fill();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = sel ? '#dcebf0' : '#8ea6af';
+    ctx.font = '700 3.7px Arial,Helvetica,sans-serif';
+    ctx.fillText(utcTime(frames[i].time).replace('Z', ''), x, 239.5);
   }
   ctx.textAlign = 'right';
-  ctx.fillStyle = '#b5c5cb';
-  ctx.font = '700 4.4px Arial,Helvetica,sans-serif';
-  ctx.fillText(shown ? utcTime(shown.time) : '--:--Z', 326, 226);
+  ctx.fillStyle = overlay.suppressed ? '#8398a1' : '#bfeaf4';
+  ctx.font = '800 3.9px Arial,Helvetica,sans-serif';
+  ctx.fillText(overlay.suppressed ? 'EXTRAPOLATION SUPPRESSED' : `EXTRAPOLATED +${overlay.minutes}M  ${overlay.confidence}%`, 326, 226);
   const lx = 166,
-    ly = 235,
+    ly = 246,
     lw = 116,
     vals = [8, 18, 28, 38, 48, 58, 68];
   for (let i = 0; i < vals.length; i++) {
@@ -174,13 +183,13 @@ function eFooter() {
   ctx.textAlign = 'left';
   ctx.fillStyle = '#a9bac1';
   ctx.font = '700 4.3px Arial,Helvetica,sans-serif';
-  ctx.fillText('LIGHT', 166, 246.5);
+  ctx.fillText('LIGHT', 166, 252);
   ctx.textAlign = 'center';
-  ctx.fillText('RAIN', 224, 246.5);
+  ctx.fillText('RAIN', 224, 252);
   ctx.textAlign = 'right';
-  ctx.fillText('INTENSE', 282, 246.5);
+  ctx.fillText('INTENSE', 282, 252);
   ctx.textAlign = 'left';
-  ctx.fillText('dBZ', 287, 237.5);
+  ctx.fillText('dBZ', 287, 248.5);
   ctx.textAlign = 'left';
   ctx.fillStyle = '#76909b';
   ctx.font = '800 4.5px Arial,Helvetica,sans-serif';
@@ -229,6 +238,7 @@ render = function (now = performance.now()) {
   if (state.frames.length) {
     ctx.drawImage(eBase(), 0, 0);
     eRadar(now);
+    eMotionOverlay();
     ctx.drawImage(eLines(), 0, 0);
     eDrawTropics();
     eDrawWarnings();

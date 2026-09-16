@@ -10,7 +10,7 @@ Version 8 replaces the rejected broadcast-v7 presentation with one stable inform
 
 - one dominant radar map, not a miniature dashboard
 - full-width header for scale, MRMS scan time/freshness, current temperature, wind, humidity and next-hour precipitation probability
-- full-width decision footer for HOME IMPACT, RADAR LOOP and HAZARDS
+- full-width decision footer for HOME IMPACT, an observed-frame progress rail and HAZARDS
 - native 456 x 257 reflectivity rendering with restrained smoothing that preserves storm cores
 - state and county geography loaded before a view is exposed
 - small collision-aware city labels
@@ -37,7 +37,9 @@ The four automatic scales are NEIGHBORHOOD, SOUTH FLORIDA, FLORIDA and GULF + CA
 - NWS/MADIS surface observations
 - api.weather.gov current observations and hourly forecast context
 
-The screen exposes the actual MRMS observation time and classifies the feed as live, delayed or stale. If current MRMS data cannot be acquired, RDR reports the live feed as unavailable rather than silently substituting an old radar frame.
+The screen exposes the actual MRMS observation time and classifies the feed as live, delayed or stale. The loop retains up to five actual MRMS observations, in chronological order, and prints the UTC time for every rail position. If the newest acquisition fails after a good observation, the display keeps that last-good observed loop, marks it degraded/stale as appropriate, and never relabels it as current. If no observed frame exists, RDR reports the live feed as unavailable.
+
+The thin map vector is explicitly labelled `EXTRAPOLATED +45M`; it is a deterministic, static low-power motion aid rather than a sixth radar frame. It is shown only when three recent observed frames have plausible cadence and stable direction/speed, with a HIGH/MEDIUM/LOW confidence label derived from those measurements. Stale observations, missing history, incoherent motion, and low confidence suppress it explicitly.
 
 ## Rendering modules
 

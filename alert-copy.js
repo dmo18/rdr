@@ -106,14 +106,14 @@ if (typeof vHeader === 'function') {
     ctx.fillText(view().name, 8, 20);
     ctx.fillStyle = '#9cb1ba';
     ctx.font = '700 4.45px Arial,Helvetica,sans-serif';
-    ctx.fillText(`MRMS ${latest ? utcTime(latest) : '--:--Z'}`, 118, 8.2);
+    ctx.fillText(`OBSERVED ${latest ? utcTime(latest) : '--:--Z'}`, 118, 8.2);
     ctx.fillStyle = fresh === 'live' ? '#54e895' : fresh === 'delayed' ? '#efca59' : '#f16e65';
     ctx.beginPath();
     ctx.arc(119.5, 19.6, 1.45, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#cbd7dc';
     ctx.font = '800 4.65px Arial,Helvetica,sans-serif';
-    ctx.fillText(`${fresh.toUpperCase()}${age != null ? `  ${age}m` : ''}`, 124, 19.6);
+    ctx.fillText(`${fresh.toUpperCase()}${age != null ? `  ${age}m` : ''}${panel.dataset.fallback === 'last-good-observed' ? '  •  LAST GOOD SCAN' : ''}`, 124, 19.6);
     ux.alertHeaderText = '';
     if (sum) {
       const label = sum.typedLabel || rdrTypedAlertLabel(sum.meta, sum.same),
