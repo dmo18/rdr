@@ -13,7 +13,7 @@ function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t =
 function _defineProperty(e, r, t) { return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: !0, configurable: !0, writable: !0 }) : e[r] = t, e; }
 function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == typeof i ? i : i + ""; }
 function _toPrimitive(t, r) { if ("object" != typeof t || !t) return t; var e = t[Symbol.toPrimitive]; if (void 0 !== e) { var i = e.call(t, r || "default"); if ("object" != typeof i) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === r ? String : Number)(t); }
-const V_UX_BUILD = 'vnext-2026.09.16.2';
+const V_UX_BUILD = 'vnext-2026.09.16.3';
 const V_MOTION_CACHE = new Map();
 function vEnsureUx() {
   if (!state.ux) state.ux = {};
@@ -607,11 +607,12 @@ function vFooter() {
   ctx.fillStyle = overlay.suppressed ? '#e9a59f' : '#bfeaf4';
   ctx.font = '900 4.7px Arial,Helvetica,sans-serif';
   ctx.fillText('EXTRAPOLATED', 342, 226);
+  const suppressionLabel = overlay.reason === 'stale-observation' ? 'UNAVAILABLE • STALE' : overlay.reason === 'low-confidence-motion' ? 'LOW CONFIDENCE' : overlay.reason === 'no-coherent-motion' ? 'NO MOTION ESTIMATE' : 'UNAVAILABLE';
   ctx.font = '900 5.4px Arial,Helvetica,sans-serif';
-  ctx.fillText(overlay.suppressed ? `UNAVAILABLE${overlay.reason === 'stale-observation' ? ' • STALE' : ''}` : `MOTION +${overlay.minutes} MIN`, 342, 237);
+  ctx.fillText(overlay.suppressed ? suppressionLabel : `MOTION +${overlay.minutes} MIN`, 342, 237);
   ctx.fillStyle = overlay.suppressed ? '#c8a29d' : '#a4ddeb';
   ctx.font = '800 4.25px Arial,Helvetica,sans-serif';
-  ctx.fillText(!overlay.suppressed && overlay.observedTime ? `${motionConfidenceLabel(overlay.confidence)} CONF. • EST ${radarTimeET(new Date(overlay.observedTime.getTime() + overlay.minutes * 60000))}` : panel.dataset.fallback === 'last-good-observed' ? 'LAST GOOD SCAN' : 'MOTION NOT AVAILABLE', 342, 248.5);
+  ctx.fillText(!overlay.suppressed && overlay.observedTime ? `${motionConfidenceLabel(overlay.confidence)} CONF. • EST ${radarTimeET(new Date(overlay.observedTime.getTime() + overlay.minutes * 60000))}` : overlay.reason === 'stale-observation' ? panel.dataset.fallback === 'last-good-observed' ? 'LAST GOOD SCAN' : 'OBSERVED DATA STALE' : overlay.reason === 'awaiting-observed-frames' ? 'OBSERVED DATA UNAVAILABLE' : 'EXTRAPOLATION SUPPRESSED', 342, 248.5);
 }
 function vAlertSummaryState() {
   var _sum$meta;
