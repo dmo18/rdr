@@ -19,7 +19,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'data-ui="vnext-2026.08.12.1"' index.html
+          grep -q 'data-ui="vnext-2026.09.16.2"' index.html
           grep -Eq '<script src="vnext\.js(\?[^\"]*)?"></script>' index.html
           grep -Eq 'cityLabelBoxes[[:space:]]*=[[:space:]]*0' vnext.js
           grep -q "lightningSymbols" vnext.js
@@ -55,7 +55,7 @@ jobs:
           const base=process.env.RDR_URL||'http://127.0.0.1:8765/';
           const outDir=process.env.RDR_OUT||'/tmp/rdr-vnext/local';
           const browser=await puppeteer.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--hide-scrollbars']});
-          const waitReady=(page,id)=>page.waitForFunction(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get(id);return p?.dataset?.ui==='vnext-2026.08.12.1'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(b?.states?.length||0)>=1},{timeout:180000,polling:250},id);
+          const waitReady=(page,id)=>page.waitForFunction(id=>{const s=window.__RDR__,p=document.querySelector('#panel'),b=s?.boundaries?.get(id);return p?.dataset?.ui==='vnext-2026.09.16.2'&&p?.dataset?.radar==='live'&&p?.dataset?.ready==='true'&&s?.frames?.length>=1&&(b?.states?.length||0)>=1},{timeout:180000,polling:250},id);
           const watch=page=>{const a=[];page.on('pageerror',e=>a.push('pageerror: '+e.message));page.on('console',m=>{if(m.type()==='error')a.push('console: '+m.text())});return a};
           const diag=page=>page.evaluate(()=>{const p=document.querySelector('#panel'),c=document.querySelector('#display'),r=p.getBoundingClientRect(),s=window.__RDR__;return{viewport:[innerWidth,innerHeight],panel:[r.width,r.height],backing:[c.width,c.height],dataset:{...p.dataset},ux:{...s.ux},alertUi:{...(s.alertUi||{})},frames:s.frames.length,errors:[...s.errors]}});
           try{
@@ -110,7 +110,7 @@ jobs:
           set -euo pipefail
           for i in $(seq 1 72); do
             body=$(curl -fsSL "https://dmo18.github.io/rdr/?vnext=${GITHUB_SHA}-${i}" || true)
-            if printf '%s' "$body" | grep -q 'data-ui="vnext-2026.08.12.1"'; then exit 0; fi
+            if printf '%s' "$body" | grep -q 'data-ui="vnext-2026.09.16.2"'; then exit 0; fi
             sleep 5
           done
           echo 'Pages did not publish vNext' >&2
