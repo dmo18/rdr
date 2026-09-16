@@ -1,0 +1,11 @@
+:root{color-scheme:dark;background:#04131b;font-family:Arial,Helvetica,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#04131b}
+body{position:relative}
+#shell{position:fixed;inset:0;overflow:hidden;background:#04131b}
+#panel{position:absolute;left:50%;top:50%;width:456px;height:257px;transform-origin:center center;background:#04131b;overflow:hidden;contain:layout paint size;isolation:isolate}
+#display{display:block;width:456px;height:257px;background:#04131b}
+#boot{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;background:#04131b;color:#eaf6f9;letter-spacing:.06em;transition:opacity .16s ease;pointer-events:none}
+#boot b{font-size:14px;line-height:1;font-weight:900;color:#83e4ff}
+#boot span{font-size:6px;font-weight:800;color:#8aa3ad;letter-spacing:.12em}
+#boot.off{opacity:0;visibility:hidden}
