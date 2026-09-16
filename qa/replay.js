@@ -3,7 +3,7 @@
  const ids=['home','metro','florida','regional'],q=new URLSearchParams(location.search),id=ids.includes(q.get('view'))?q.get('view'):'florida';
  const r=await fetch('fixture.json',{cache:'no-store'});if(!r.ok)throw new Error(`fixture ${r.status}`);const fx=await r.json();
  const typed=o=>Object.fromEntries(Object.entries(o||{}).map(([k,a])=>[k,Int16Array.from(a)]));
- state.view=CFG.views.findIndex(v=>v.id===id);state.frames=(fx.runtime?.frames||[]).map(f=>({key:f.key,time:new Date(f.time),views:typed(f.views)}));state.cursor=Math.max(0,state.frames.length-1);
+ state.view=CFG.views.findIndex(v=>v.id===id);state.frames=(fx.runtime?.frames||[]).map(f=>({key:f.key,time:new Date(f.time),views:typed(f.views)})).sort((a,b)=>a.time-b.time).slice(-CFG.radarObservedFrames);state.lastGoodFrames=state.frames.slice();state.cursor=Math.max(0,state.frames.length-1);panel.dataset.observedFrames=String(state.frames.length);panel.dataset.loop=`observed-${state.frames.length}-of-${CFG.radarObservedFrames}`;
  state.severe.lightning=fx.runtime?.severe?.lightning?{...fx.runtime.severe.lightning,time:new Date(fx.runtime.severe.lightning.time),views:typed(fx.runtime.severe.lightning.views)}:null;
  state.severe.mesh=fx.runtime?.severe?.mesh?{...fx.runtime.severe.mesh,time:new Date(fx.runtime.severe.mesh.time),views:typed(fx.runtime.severe.mesh.views)}:null;
  state.warnings=new Map((fx.runtime?.warnings||[]).map((f,i)=>[String(f.id??f.properties?.OBJECTID??i),f]));state.tropics=fx.runtime?.tropics||[];
