@@ -38,6 +38,12 @@ const result=vm.runInContext(`(() => {
   assert.deepEqual(state.frames.map(f=>f.key),lastGood);
   assert.equal(panel.dataset.fallback,'last-good-observed');
 
+  state.frames=[frame('warm-a',now-5*60000,100),frame('warm-b',now,120)];
+  deriveHome();
+  assert.equal(freshness(),'live','recent observed frames remain live while the loop is filling');
+  assert.equal(state.motionOverlay.suppressed,true);
+  assert.equal(state.motionOverlay.reason,'awaiting-observed-frames','fewer than three observations is a motion warm-up, not unavailable radar');
+
   state.frames=[frame('old-a',now-31*60000,120),frame('old-b',now-26*60000,140),frame('old-c',now-21*60000,160)];
   deriveHome();
   assert.equal(state.motionOverlay.suppressed,true,'stale observations suppress extrapolation');

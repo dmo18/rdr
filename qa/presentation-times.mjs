@@ -34,11 +34,13 @@ assert.match(vnext,/FRAME \$\{frames\.length \? state\.cursor \+ 1 : 0\} OF \$\{
 assert.match(vnext,/EXTRAPOLATED/);
 assert.match(vnext,/MOTION \+\$\{overlay\.minutes\} MIN/);
 assert.match(vnext,/UNAVAILABLE • STALE/,'only stale observations are labelled unavailable');
-assert.match(vnext,/OBSERVED DATA UNAVAILABLE/);
+assert.match(vnext,/AWAITING FRAMES/,'a live loop with insufficient history is explicitly a warm-up state');
+assert.match(vnext,/OBSERVED LOOP BUILDING/);
 assert.match(vnext,/LOW CONFIDENCE/);
 assert.match(vnext,/NO MOTION ESTIMATE/);
 assert.match(vnext,/EXTRAPOLATION SUPPRESSED/);
 assert.doesNotMatch(vnext,/MOTION NOT AVAILABLE/,'suppressed estimates do not imply observed radar is unavailable');
+assert.doesNotMatch(vnext,/reason === 'awaiting-observed-frames' \? 'OBSERVED DATA UNAVAILABLE'/,'a loop warm-up never reports the observed feed unavailable');
 assert.match(vnext,/EST \$\{radarTimeET/);
 assert.match(vnext,/radarEtaTime\(/);
 assert.match(copy,/LAST GOOD SCAN/);

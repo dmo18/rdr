@@ -607,12 +607,15 @@ function vFooter() {
   ctx.fillStyle = overlay.suppressed ? '#e9a59f' : '#bfeaf4';
   ctx.font = '900 4.7px Arial,Helvetica,sans-serif';
   ctx.fillText('EXTRAPOLATED', 342, 226);
-  const suppressionLabel = overlay.reason === 'stale-observation' ? 'UNAVAILABLE • STALE' : overlay.reason === 'low-confidence-motion' ? 'LOW CONFIDENCE' : overlay.reason === 'no-coherent-motion' ? 'NO MOTION ESTIMATE' : 'UNAVAILABLE';
+  // A live loop needs three observations before its motion can be assessed.
+  // Do not call that normal warm-up state unavailable: that wording is reserved
+  // for an absent or stale observed feed.
+  const suppressionLabel = overlay.reason === 'stale-observation' ? 'UNAVAILABLE • STALE' : overlay.reason === 'low-confidence-motion' ? 'LOW CONFIDENCE' : overlay.reason === 'no-coherent-motion' ? 'NO MOTION ESTIMATE' : 'AWAITING FRAMES';
   ctx.font = '900 5.4px Arial,Helvetica,sans-serif';
   ctx.fillText(overlay.suppressed ? suppressionLabel : `MOTION +${overlay.minutes} MIN`, 342, 237);
   ctx.fillStyle = overlay.suppressed ? '#c8a29d' : '#a4ddeb';
   ctx.font = '800 4.25px Arial,Helvetica,sans-serif';
-  ctx.fillText(!overlay.suppressed && overlay.observedTime ? `${motionConfidenceLabel(overlay.confidence)} CONF. • EST ${radarTimeET(new Date(overlay.observedTime.getTime() + overlay.minutes * 60000))}` : overlay.reason === 'stale-observation' ? panel.dataset.fallback === 'last-good-observed' ? 'LAST GOOD SCAN' : 'OBSERVED DATA STALE' : overlay.reason === 'awaiting-observed-frames' ? 'OBSERVED DATA UNAVAILABLE' : 'EXTRAPOLATION SUPPRESSED', 342, 248.5);
+  ctx.fillText(!overlay.suppressed && overlay.observedTime ? `${motionConfidenceLabel(overlay.confidence)} CONF. • EST ${radarTimeET(new Date(overlay.observedTime.getTime() + overlay.minutes * 60000))}` : overlay.reason === 'stale-observation' ? panel.dataset.fallback === 'last-good-observed' ? 'LAST GOOD SCAN' : 'OBSERVED DATA STALE' : overlay.reason === 'awaiting-observed-frames' ? 'OBSERVED LOOP BUILDING' : 'EXTRAPOLATION SUPPRESSED', 342, 248.5);
 }
 function vAlertSummaryState() {
   var _sum$meta;
