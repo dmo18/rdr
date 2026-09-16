@@ -54,7 +54,7 @@ const ui=fs.readFileSync('enterprise-ui.js','utf8');
 const map=fs.readFileSync('enterprise-map.js','utf8');
 assert.match(ui,/OBSERVED LOOP/);
 assert.match(ui,/EXTRAPOLATION SUPPRESSED/);
-assert.match(ui,/utcTime\(frames\[i\]\.time\)/,'each rail point renders its observed timestamp');
+assert.match(ui,/radarTimeET\(frames\[i\]\.time\)/,'each rail point renders its observed timestamp through ET presentation');
 assert.match(map,/function eMotionOverlay/);
 assert.doesNotMatch(map.match(/function eMotionOverlay[\s\S]*?(?=function ePeak)/)?.[0]||'',/requestAnimationFrame/,'motion overlay is static for low-power players');
 console.log(JSON.stringify({ok:true,...result}));

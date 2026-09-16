@@ -32,7 +32,7 @@ function eHeader() {
   ctx.fill();
   ctx.fillStyle = '#c8d5da';
   ctx.font = '800 4.8px Arial,Helvetica,sans-serif';
-  ctx.fillText(`${fresh.toUpperCase()}${latest ? `  ${utcTime(latest)}${age != null ? `  ${age}m` : ''}` : ''}`, 72, 19.4);
+  ctx.fillText(`${fresh.toUpperCase()}${latest ? `  ${radarTimeET(latest)}${age != null ? `  ${age}m` : ''}` : ''}`, 72, 19.4);
   if (local) {
     ctx.fillStyle = eHazardColor(warningCode(local));
     ctx.font = '900 5.2px Arial,Helvetica,sans-serif';
@@ -73,7 +73,7 @@ function eHomeText() {
   }
   if (n) return {
     main: 'DRY',
-    sub: `RAIN ${Math.max(1, Math.round(n.miles))} MI ${n.dir}${e ? `  •  ETA ${e.minutes}m` : ''}`
+    sub: `RAIN ${Math.max(1, Math.round(n.miles))} MI ${n.dir}${e ? `  •  ETA ${radarEtaTime(e, state.frames.length ? state.frames[state.frames.length - 1].time : null) || `${e.minutes}M`}` : ''}`
   };
   return {
     main: 'DRY',
@@ -165,7 +165,7 @@ function eFooter() {
     ctx.textAlign = 'center';
     ctx.fillStyle = sel ? '#dcebf0' : '#8ea6af';
     ctx.font = '700 3.7px Arial,Helvetica,sans-serif';
-    ctx.fillText(utcTime(frames[i].time).replace('Z', ''), x, 239.5);
+    ctx.fillText(radarTimeET(frames[i].time), x, 239.5);
   }
   ctx.textAlign = 'right';
   ctx.fillStyle = overlay.suppressed ? '#8398a1' : '#bfeaf4';
