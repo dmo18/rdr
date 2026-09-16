@@ -422,19 +422,19 @@ function deriveHome() {
   const dbz = sampleHome(f),
     nearest = dbz < 5 ? nearestRain(f) : null,
     motion = deriveMotion(nearest);
+  state.motion = motion;
+  state.motionOverlay = deriveMotionOverlay(nearest, motion);
   let eta = null;
-  if (motion && nearest) {
+  if (motion && nearest && state.motionOverlay && !state.motionOverlay.suppressed) {
     const toward = bearing(nearest, CFG.home),
       diff = angleDiff(motion.bearing, toward),
       closing = motion.mph * Math.cos(diff * Math.PI / 180),
       mins = nearest.miles / Math.max(1, closing) * 60;
     if (diff < 55 && closing > 3 && nearest.miles < 150 && mins > 0 && mins < 180) eta = {
-      minutes: Math.round(mins),
+      minutes: Math.max(5, Math.round(mins / 5) * 5),
       miles: nearest.miles
     };
   }
-  state.motion = motion;
-  state.motionOverlay = deriveMotionOverlay(nearest, motion);
   state.home = {
     dbz,
     status: classifyDbz(dbz),

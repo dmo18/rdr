@@ -433,7 +433,7 @@ function vHomeText() {
   }
   if (n) return {
     main: 'DRY',
-    sub: [`RAIN ${Math.max(1, Math.round(n.miles))} MI ${n.dir}${e ? ` ETA ${e.minutes}m` : ''}`, ...extras].filter(Boolean).join('  •  ')
+    sub: [`RAIN ${Math.max(1, Math.round(n.miles))} MI ${n.dir}${e ? ` EST ETA ~${e.minutes}m` : ''}`, ...extras].filter(Boolean).join('  •  ')
   };
   return {
     main: 'DRY',
