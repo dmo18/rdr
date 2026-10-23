@@ -21,6 +21,10 @@ jobs:
           set -euo pipefail
           node --check core.js
           node --check radar.js
+          node --check background.js
+          node --check clarity.js
+          node qa/continuous-regression.mjs
+          node qa/decoder-regression.mjs
           node --check qa/hang-regression.js
           node qa/legacy-compat.mjs
           git fetch --no-tags origin main:refs/remotes/origin/main

@@ -2,11 +2,14 @@
 (async()=>{
  const ids=['home','metro','florida','regional'],q=new URLSearchParams(location.search),id=ids.includes(q.get('view'))?q.get('view'):'florida';
  const r=await fetch('fixture.json',{cache:'no-store'});if(!r.ok)throw new Error(`fixture ${r.status}`);const fx=await r.json();
- const typed=o=>Object.fromEntries(Object.entries(o||{}).map(([k,a])=>[k,Int16Array.from(a)]));
+ fx.runtime=fx.runtime||fx;
+ if(!fx.views&&fx.boundaries){const boundaries=new Map(fx.boundaries),surface=new Map(fx.surface||[]);fx.views=Object.fromEntries(ids.map(v=>[v,{boundaries:boundaries.get(v),surface:surface.get(v)}]))}
+ const typed=o=>Object.fromEntries(Object.entries(o||{}).map(([k,a])=>{if(typeof a!=='string')return[k,Int16Array.from(a)];const raw=atob(a),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));return[k,new Int16Array(bytes.buffer)]}));
+ state.runtime.lowPower=true;fitPanel();
  state.view=CFG.views.findIndex(v=>v.id===id);state.frames=(fx.runtime?.frames||[]).map(f=>({key:f.key,time:new Date(f.time),views:typed(f.views)}));state.cursor=Math.max(0,state.frames.length-1);
  state.severe.lightning=fx.runtime?.severe?.lightning?{...fx.runtime.severe.lightning,time:new Date(fx.runtime.severe.lightning.time),views:typed(fx.runtime.severe.lightning.views)}:null;
  state.severe.mesh=fx.runtime?.severe?.mesh?{...fx.runtime.severe.mesh,time:new Date(fx.runtime.severe.mesh.time),views:typed(fx.runtime.severe.mesh.views)}:null;
- state.warnings=new Map((fx.runtime?.warnings||[]).map((f,i)=>[String(f.id??f.properties?.OBJECTID??i),f]));state.tropics=fx.runtime?.tropics||[];
+ state.warnings=new Map((fx.runtime?.warnings||[]).map((f,i)=>Array.isArray(f)?f:[String(f.id??f.properties?.OBJECTID??i),f]));state.tropics=fx.runtime?.tropics||[];
  for(const v of ids){const x=fx.views?.[v];if(x?.boundaries)state.boundaries.set(v,x.boundaries);if(x?.surface)state.surface.set(v,x.surface)}
  const vx=fx.views?.[id]||{};state.weather=vx.weather||fx.runtime?.weather||null;if(state.weather?.time)state.weather.time=new Date(state.weather.time);if(state.weather?.forecast?.startTime)state.weather.forecast.startTime=new Date(state.weather.forecast.startTime);state.home=vx.home||fx.runtime?.home||state.home;state.motion=vx.motion||fx.runtime?.motion||null;if(state.frames.length)deriveHome();
  panel.dataset.view=id;panel.dataset.ready='true';panel.dataset.radar='live';panel.dataset.freshness='live';panel.dataset.surface='live';boot.classList.add('off');

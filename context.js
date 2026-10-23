@@ -13,6 +13,12 @@ function arcUrl(base, layer, bbox, outFields = '*') {
       returnGeometry: 'true',
       f: 'geojson'
     });
+  // Simplify static reference geography to sub-pixel precision on this tile.
+  // Warning polygons are never simplified by this request option.
+  if (base === CFG.reference) {
+    p.set('maxAllowableOffset', String(Math.min(e - w, n - s) / CFG.width * .4));
+    p.set('geometryPrecision', '6');
+  }
   return `${base}/${layer}/query?${p}`;
 }
 async function arcQuery(base, layer, bbox, outFields = '*') {

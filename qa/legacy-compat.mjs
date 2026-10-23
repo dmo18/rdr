@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 
-const files=['core.js','radar.js','context.js','enterprise-core.js','enterprise-map.js','enterprise-overlays.js','enterprise-ui.js','alerts.js','hidpi.js','vnext.js','vnext-motion.js','alert-copy.js','app.js'];
+const files=['core.js','radar.js','context.js','enterprise-core.js','enterprise-map.js','enterprise-overlays.js','enterprise-ui.js','alerts.js','hidpi.js','vnext.js','vnext-motion.js','alert-copy.js','app.js','background.js','clarity.js'];
 const unsupported=[['optional chaining',/\?\./],['nullish coalescing',/\?\?(?![.=])/],['optional catch binding',/catch\s*\{/]];
 for(const file of files){
   const source=fs.readFileSync(file,'utf8');

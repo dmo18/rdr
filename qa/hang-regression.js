@@ -6,7 +6,7 @@
     const nativeAbortController=window.AbortController;
     try{Object.defineProperty(window,'AbortController',{value:undefined,configurable:true})}catch{}
     if(typeof AbortController==='function')throw new Error('cannot simulate Chromium without AbortController');
-    const keys=['qa-1.grib2.gz','qa-2.grib2.gz','qa-3.grib2.gz','qa-4.grib2.gz','qa-5.grib2.gz'],xml=keys.map(key=>`<Key>CONUS/${CFG.radarProduct}/qa/${key}</Key>`).join('');
+    const keys=Array.from({length:CFG.radarObservedFrames},(_,i)=>`qa-${String(i+1).padStart(2,'0')}.grib2.gz`),xml=keys.map(key=>`<Key>CONUS/${CFG.radarProduct}/qa/${key}</Key>`).join('');
     let listings=0,gribResponses=0,gribBodies=0;const realFetch=window.fetch;
     window.fetch=url=>{
       if(String(url).includes('list-type=2')){listings++;return Promise.resolve({ok:true,text:()=>Promise.resolve(`<ListBucketResult>${xml}</ListBucketResult>`)})}

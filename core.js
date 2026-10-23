@@ -47,37 +47,37 @@ const CFG = {
   pollMs: 120000,
   vectorMs: 300000,
   severeMs: 180000,
-  radarFrameMs: 1100,
-  radarBlendMs: 420,
-  radarObservedFrames: 5,
+  radarFrameMs: 500,
+  radarBlendMs: 120,
+  radarObservedFrames: 24,
   motionExtrapolationMinutes: 45,
   motionMaxAgeMs: 480000,
   animFps: 15,
   views: [{
     id: 'home',
     name: 'NEIGHBORHOOD',
-    duration: 11000,
+    duration: 24000,
     bbox: [-80.46, 25.84, -79.96, 26.30],
     scaleMi: 10,
     labels: [['DAVIE', 26.0765, -80.2521], ['HOLLYWOOD', 26.0112, -80.1495], ['DANIA BEACH', 26.0523, -80.1439], ['FORT LAUDERDALE', 26.1224, -80.1373], ['HALLANDALE', 25.9812, -80.1484], ['MIRAMAR', 25.9861, -80.3036]]
   }, {
     id: 'metro',
     name: 'SOUTH FLORIDA',
-    duration: 11000,
+    duration: 24000,
     bbox: [-81.10, 25.00, -79.45, 27.02],
     scaleMi: 25,
     labels: [['WEST PALM', 26.7153, -80.0534], ['BOCA RATON', 26.3683, -80.1289], ['FORT LAUDERDALE', 26.1224, -80.1373], ['HOLLYWOOD', 26.0112, -80.1495], ['MIAMI', 25.7617, -80.1918], ['HOMESTEAD', 25.4687, -80.4776], ['KEY LARGO', 25.0865, -80.4473]]
   }, {
     id: 'florida',
     name: 'FLORIDA',
-    duration: 11000,
+    duration: 14000,
     bbox: [-87.80, 24.00, -79.20, 31.25],
     scaleMi: 100,
     labels: [['JACKSONVILLE', 30.3322, -81.6557], ['ORLANDO', 28.5383, -81.3792], ['TAMPA', 27.9506, -82.4572], ['WEST PALM', 26.7153, -80.0534], ['FORT MYERS', 26.6406, -81.8723], ['NAPLES', 26.1423, -81.7948], ['MIAMI', 25.7617, -80.1918], ['KEY WEST', 24.5551, -81.7800]]
   }, {
     id: 'regional',
     name: 'GULF + CARIBBEAN',
-    duration: 12000,
+    duration: 14000,
     bbox: [-98.00, 18.00, -72.00, 32.80],
     scaleMi: 250,
     labels: [['GULF OF MEXICO', 25.9, -90.0], ['FLORIDA', 27.4, -81.7], ['MIAMI', 25.7617, -80.1918], ['KEY WEST', 24.5551, -81.7800], ['HAVANA', 23.1136, -82.3666], ['CUBA', 22.25, -79.7], ['BAHAMAS', 24.4, -76.7], ['YUCATAN', 21.0, -87.1]]

@@ -13,7 +13,7 @@ function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t =
 function _defineProperty(e, r, t) { return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: !0, configurable: !0, writable: !0 }) : e[r] = t, e; }
 function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == typeof i ? i : i + ""; }
 function _toPrimitive(t, r) { if ("object" != typeof t || !t) return t; var e = t[Symbol.toPrimitive]; if (void 0 !== e) { var i = e.call(t, r || "default"); if ("object" != typeof i) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === r ? String : Number)(t); }
-const V_UX_BUILD = 'vnext-2026.09.16.3';
+const V_UX_BUILD = 'vnext-2026.10.23.1';
 const V_MOTION_CACHE = new Map();
 function vEnsureUx() {
   if (!state.ux) state.ux = {};
@@ -41,7 +41,7 @@ function vHaloText(text, x, y, {
 }
 function vCityLabels(occ) {
   const def = view(),
-    base = def.id === 'home' ? 7.0 : def.id === 'metro' ? 6.7 : def.id === 'florida' ? 6.25 : 5.9,
+    base = def.id === 'home' ? 9 : 8.5,
     max = def.id === 'home' ? 6 : def.id === 'metro' ? 6 : def.id === 'florida' ? 7 : 6;
   let drawn = 0;
   for (const [name, lat, lon] of def.labels) {
@@ -57,7 +57,7 @@ function vCityLabels(occ) {
     const font = `800 ${base}px Arial,Helvetica,sans-serif`;
     ctx.font = font;
     const w = Math.ceil(ctx.measureText(name).width) + 4,
-      h = 9.5,
+      h = 12,
       b = ePlace(occ, w, h, [[x - w / 2, y - h / 2], [x - w / 2, y - h - 10], [x - w / 2, y + 3]]);
     if (!b) continue;
     vHaloText(name, b.x + b.w / 2, b.y + b.h / 2 + .1, {
@@ -315,7 +315,7 @@ function vStormFocus(occ) {
     ctx.restore();
     ctx.font = '800 5.1px Arial,Helvetica,sans-serif';
     const w = Math.ceil(ctx.measureText(label).width) + 7,
-      h = 9.5,
+      h = 12,
       b = ePlace(occ, w, h, [[c.x + 6, c.y - 11], [c.x + 6, c.y + 3], [c.x - w - 6, c.y - 11]]);
     if (!b) continue;
     ctx.save();
@@ -397,10 +397,10 @@ function vWarningLabels(occ) {
     if (!meta.isWarning || meta.isAdvisory || meta.isWatch) continue;
     const p = ePoint(c.lat, c.lon);
     if (!eInMap(p.y, 8)) continue;
-    const font = '900 5.4px Arial,Helvetica,sans-serif';
+    const font = '900 8px Arial,Helvetica,sans-serif';
     ctx.font = font;
     const w = Math.ceil(ctx.measureText(meta.code).width) + 4,
-      h = 8,
+      h = 12,
       b = ePlace(occ, w, h, [[p.x + 3, p.y - 9], [p.x - w - 3, p.y - 9], [p.x + 3, p.y + 2]]);
     if (!b) continue;
     vHaloText(meta.code, b.x + b.w / 2, b.y + b.h / 2, {

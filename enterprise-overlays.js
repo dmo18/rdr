@@ -204,7 +204,7 @@ function eScale() {
   ctx.moveTo(x + px, y - 2.5);
   ctx.lineTo(x + px, y + 2.5);
   ctx.stroke();
-  ctx.font = '700 4.6px Arial,Helvetica,sans-serif';
+  ctx.font = '700 8px Arial,Helvetica,sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
   ctx.fillText(`${def.scaleMi} MI`, x + px / 2, y - 2);

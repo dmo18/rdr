@@ -10,9 +10,9 @@ const eRadarCache = new Map(),
   eLineCache = new Map(),
   ePeakCache = new Map(),
   eCellCache = new Map();
-const E_MAP_TOP = 29,
-  E_MAP_BOTTOM = 220,
-  E_FOOT_TOP = 220;
+const E_MAP_TOP = 40,
+  E_MAP_BOTTOM = 210,
+  E_FOOT_TOP = 210;
 const E_LAND = [[[-82.2682, 23.1886], [-81.4045, 23.1173], [-80.6188, 23.106], [-79.6795, 22.7653], [-79.2815, 22.3992], [-78.3474, 22.5122], [-77.9933, 22.2772], [-77.1464, 21.6579], [-76.5238, 21.2068], [-76.1946, 21.2206], [-75.5982, 21.0166], [-75.6711, 20.7351], [-74.9339, 20.6939], [-74.178, 20.2846], [-74.2966, 20.0504], [-74.9616, 19.9234], [-75.6347, 19.8738], [-76.3237, 19.9529], [-77.7555, 19.8555], [-77.0851, 20.4134], [-77.4927, 20.6731], [-78.1373, 20.7399], [-78.4828, 21.0286], [-78.7199, 21.5981], [-79.285, 21.5592], [-80.2175, 21.8273], [-80.5175, 22.0371], [-81.8209, 22.1921], [-82.17, 22.3871], [-81.795, 22.637], [-82.7759, 22.6882], [-83.4945, 22.1685], [-83.9088, 22.1546], [-84.0522, 21.9106], [-84.547, 21.8012], [-84.9749, 21.896], [-84.4471, 22.205], [-84.2304, 22.5658], [-83.7782, 22.7881], [-83.2675, 22.983], [-82.5104, 23.0787], [-82.2682, 23.1886]], [[-77.5347, 23.7598], [-77.78, 23.71], [-78.0341, 24.2862], [-78.4085, 24.5756], [-78.1909, 25.2103], [-77.89, 25.17], [-77.54, 24.34], [-77.5347, 23.7598]], [[-77.82, 26.58], [-78.91, 26.42], [-78.98, 26.79], [-78.51, 26.87], [-77.85, 26.84], [-77.82, 26.58]], [[-77, 26.59], [-77.1726, 25.8792], [-77.3564, 26.0074], [-77.34, 26.53], [-77.788, 26.9252], [-77.79, 27.04], [-77, 26.59]], [[-91.2, 18], [-91, 19], [-90.77, 19.284], [-90.53, 19.867], [-90.45, 20.708], [-90.279, 21], [-89.601, 21.262], [-88.544, 21.494], [-87.658, 21.459], [-87.052, 21.544], [-86.812, 21.332], [-86.846, 20.85], [-87.383, 20.255], [-87.621, 19.647], [-87.437, 19.472], [-87.587, 19.04], [-87.837, 18.26], [-88.091, 18.517], [-88.3, 18.5], [-88.49, 18.487], [-88.848, 17.883], [-89.03, 18.002], [-90.068, 17.819], [-91.2, 18]]];
 const E_LABEL_OFF = {
   home: {
@@ -93,7 +93,17 @@ function eGeometry(target, def, g, stroke = null, fill = null, width = 1, dash =
 }
 function eRound(target, x, y, w, h, r) {
   target.beginPath();
-  target.roundRect(x, y, w, h, r);
+  if (typeof target.roundRect === 'function') target.roundRect(x, y, w, h, r);
+  else {
+    // Yodeck Chromium 92 predates Canvas.roundRect.
+    r = Math.min(r, w / 2, h / 2);
+    target.moveTo(x + r, y);
+    target.lineTo(x + w - r, y); target.quadraticCurveTo(x + w, y, x + w, y + r);
+    target.lineTo(x + w, y + h - r); target.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    target.lineTo(x + r, y + h); target.quadraticCurveTo(x, y + h, x, y + h - r);
+    target.lineTo(x, y + r); target.quadraticCurveTo(x, y, x + r, y);
+    target.closePath();
+  }
 }
 function eOverlap(a, b, p = 1) {
   return !(a.x + a.w + p < b.x || b.x + b.w + p < a.x || a.y + a.h + p < b.y || b.y + b.h + p < a.y);
@@ -316,7 +326,7 @@ function eMotionOverlay(def = view()) {
   ctx.lineTo(b.x - Math.cos(angle + .48) * 4, b.y - Math.sin(angle + .48) * 4);
   ctx.closePath();
   ctx.fill();
-  ctx.font = '800 4.2px Arial,Helvetica,sans-serif';
+  ctx.font = '800 8px Arial,Helvetica,sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
   ctx.fillText(`EXTRAPOLATED +${o.minutes}M`, clamp(b.x, 28, CFG.width - 28), clamp(b.y - 4, E_MAP_TOP + 7, E_MAP_BOTTOM - 3));
@@ -448,9 +458,9 @@ function eDrawWarnings() {
     eGeometry(ctx, view(), f.geometry, c, code === 'TOR' ? 'rgba(255,75,216,.045)' : code === 'SVR' ? 'rgba(255,213,74,.035)' : 'rgba(89,236,141,.03)', code === 'TOR' ? 2 : 1.5);
   }
 }
-function eDrawTropics() {
+function eDrawTropics(target = ctx) {
   for (const f of state.tropics) {
     const l = f._layer;
-    if (l === 7) eGeometry(ctx, view(), f.geometry, 'rgba(89,213,255,.95)', 'rgba(89,213,255,.035)', 1.25, [3, 2]);else if (l === 6) eGeometry(ctx, view(), f.geometry, '#6edcff', null, 1.45);else if (l === 11) eGeometry(ctx, view(), f.geometry, 'rgba(180,202,211,.68)', null, .75, [2, 2]);else if (l === 5 || l === 10) eGeometry(ctx, view(), f.geometry, '#fff', '#fff', .8);else if (l === 8) eGeometry(ctx, view(), f.geometry, '#ffd15a', null, 1.35);else if (l === 15 || l === 16) eGeometry(ctx, view(), f.geometry, 'rgba(255,99,83,.78)', 'rgba(255,99,83,.025)', .9);else if (l === 2 || l === 3) eGeometry(ctx, view(), f.geometry, 'rgba(255,170,65,.78)', null, .8, [3, 2]);
+    if (l === 7) eGeometry(target, view(), f.geometry, 'rgba(89,213,255,.95)', 'rgba(89,213,255,.035)', 1.25, [3, 2]);else if (l === 6) eGeometry(target, view(), f.geometry, '#6edcff', null, 1.45);else if (l === 11) eGeometry(target, view(), f.geometry, 'rgba(180,202,211,.68)', null, .75, [2, 2]);else if (l === 5 || l === 10) eGeometry(target, view(), f.geometry, '#fff', '#fff', .8);else if (l === 8) eGeometry(target, view(), f.geometry, '#ffd15a', null, 1.35);else if (l === 15 || l === 16) eGeometry(target, view(), f.geometry, 'rgba(255,99,83,.78)', 'rgba(255,99,83,.025)', .9);else if (l === 2 || l === 3) eGeometry(target, view(), f.geometry, 'rgba(255,170,65,.78)', null, .8, [3, 2]);
   }
 }

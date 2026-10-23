@@ -223,7 +223,7 @@ function eWarningsInView() {
 function eHazardColor(code) {
   return E_ALERT_COLORS[code] || E_ALERT_COLORS.ALERT;
 }
-function eDrawWarnings() {
+function eDrawWarnings(target = ctx) {
   let drawn = 0;
   const local = localAlert();
   for (const {
@@ -231,8 +231,8 @@ function eDrawWarnings() {
     meta
   } of eWarningsInView()) {
     const fill = `rgba(${meta.code === 'TOR' ? '255,75,75' : meta.code === 'SVR' ? '255,224,68' : meta.code === 'FFW' || meta.code === 'FLD' ? '70,212,107' : meta.code === 'HUR' ? '255,79,163' : meta.code === 'TRP' ? '255,123,98' : meta.code === 'SMW' ? '240,160,0' : meta.code === 'WCH' ? '170,145,255' : meta.code === 'ADV' ? '98,201,255' : '255,138,76'},${meta.fill})`;
-    eGeometry(ctx, view(), f.geometry, meta.color, fill, meta.width, meta.dash);
-    if (local === f) eGeometry(ctx, view(), f.geometry, 'rgba(255,255,255,.55)', null, meta.width + 1.1, []);
+    eGeometry(target, view(), f.geometry, meta.color, fill, meta.width, meta.dash);
+    if (local === f) eGeometry(target, view(), f.geometry, 'rgba(255,255,255,.55)', null, meta.width + 1.1, []);
     drawn++;
   }
   state.alertUi = _objectSpread(_objectSpread({}, state.alertUi || {}), {}, {

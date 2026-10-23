@@ -41,3 +41,16 @@ The replay page uses the actual application renderer and recorded numeric/vector
 With `puppeteer-core` available and a local server running, execute `CHROME=/path/to/chrome node qa/yodeck-stress.mjs`. It runs all four live views plus the low-power full runtime under 4x CPU throttling and uncached reloads, and waits for radar/backfill work to drain after each reload. It captures native 456 x 257 CSS-panel screenshots. Adaptive HiDPI may use a larger canvas backing store (for example 570 x 321 at render scale 1.25); the verifier intentionally checks the CSS viewport and panel, not that implementation detail.
 
 Do not commit `qa/fixture.json`. It is a generated artifact.
+
+## Office playback release gate
+
+`qa/replay.html` now loads the production presentation stack, including HiDPI, alert-copy, motion and clarity modules. It accepts both the original array fixture and the compact base64 fixture emitted by the office verifier. Generated fixtures are local artifacts, never committed.
+
+Run the office verifier against a locally served candidate or public release:
+
+```sh
+npm install --no-save --package-lock=false playwright-core
+CHROME=/path/to/chrome RDR_URL=http://127.0.0.1:8765/ RDR_OUT=/tmp/rdr-office-qa node qa/office-playback.cjs
+```
+
+It loads 24 actual observations under 4× CPU throttling, captures all 24 frames plus the wrap on every scale, checks cursor stability, deliberately fails the worker, verifies mutex/queue release, and checks cooperative decoding with a real scan. Inspect native-size captures and the wrap frames. Also run the hang-regression page, actual older Chromium with live storms (including the `roundRect` fallback), and standard/reduced-motion playback.

@@ -37,7 +37,7 @@ The four automatic scales are NEIGHBORHOOD, SOUTH FLORIDA, FLORIDA and GULF + CA
 - NWS/MADIS surface observations
 - api.weather.gov current observations and hourly forecast context
 
-The screen exposes the actual MRMS observation time and classifies the feed as live, delayed or stale. The loop retains up to five actual MRMS observations, in chronological order, and prints the UTC time for every rail position. If the newest acquisition fails after a good observation, the display keeps that last-good observed loop, marks it degraded/stale as appropriate, and never relabels it as current. If no observed frame exists, RDR reports the live feed as unavailable.
+The screen exposes the actual MRMS observation time and classifies the feed as live, delayed or stale. The loop retains up to 24 actual MRMS observations (20 on devices reporting at most 1 GB of memory), in chronological order, and shows the playing scan time in Eastern Time, with a separate newest-data age. If the newest acquisition fails after a good observation, the display keeps that last-good observed loop, marks it degraded/stale as appropriate, and never relabels it as current. If no observed frame exists, RDR reports the live feed as unavailable.
 
 The thin map vector is explicitly labelled `EXTRAPOLATED +45M`; it is a deterministic, static low-power motion aid rather than a sixth radar frame. It is shown only when three recent observed frames have plausible cadence and stable direction/speed, with a HIGH/MEDIUM/LOW confidence label derived from those measurements. Stale observations, missing history, incoherent motion, and low confidence suppress it explicitly.
 
@@ -76,3 +76,15 @@ See `docs/UX-REVIEW-V8.md`, `docs/STATUS.md` and `qa/README.md`.
 - `?view=regional`
 
 Production: `https://dmo18.github.io/rdr/`
+
+## Office readability and continuous playback (2026.10.23.1)
+
+- Native 456×257 layout: 10–11 px primary text, 8–9 px secondary labels; full alert detail rotates rather than being squeezed into micro-print.
+- Up to 24 actual MRMS scans (~46 minutes at normal 2-minute cadence), played at 500 ms per observation. No synthesized radar observations.
+- New data preserves the displayed observation. Scales change only at a completed loop, with longer neighborhood/metro dwell and geography prepared before exposure.
+- One bounded background decoder, at most three queued jobs, 30-second job timeout, 60-second worker-failure backoff, and cooperative page-thread fallback yielding every ~8 ms. Legacy worker decompression runs off the page thread.
+- Radar image cache is capped at 24 MiB; warning/tropical image cache at 8 MiB (or one backing canvas if larger). Reference geography is requested at sub-pixel precision; warning geometry is retained unchanged.
+- Static warning paths are cached until their source/view/backing changes. Unsupported Canvas.roundRect uses a quadratic-curve fallback on older Chromium.
+- Polling is non-overlapping and completion-scheduled, with capped exception backoff and page-hide timer/worker cleanup.
+
+Run `node qa/continuous-regression.mjs`, `node qa/decoder-regression.mjs`, `node qa/legacy-compat.mjs`, and the browser hang regression before release. Render all four scales and inspect at least one complete loop in both current and legacy Chromium.

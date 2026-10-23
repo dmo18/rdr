@@ -169,7 +169,7 @@ async function decodePngToViews(meta, kind = 'radar') {
     }
     return buf[i];
   };
-  const yieldEvery = state.runtime && state.runtime.lowPower ? 48 : 192;
+  let yieldAt = performance.now();
   for (let sy = 0; sy < meta.ny; sy++) {
     const filter = raw[pos++];
     for (let i = 0; i < stride; i++) {
@@ -202,7 +202,10 @@ async function decodePngToViews(meta, kind = 'radar') {
       }
     }
     prev.set(row);
-    if (sy > 0 && sy % yieldEvery === 0) await radarYield();
+    if (performance.now() - yieldAt >= 8) {
+      await radarYield();
+      yieldAt = performance.now();
+    }
   }
   const views = Object.fromEntries(samplers.map(s => [s.def.id, s.data]));
   return views;
@@ -447,16 +450,20 @@ function validObservedFrame(frame) {
 }
 function commitObservedFrame(frame) {
   if (!validObservedFrame(frame)) throw new Error('invalid observed radar frame');
+  const playing = displayedFrame();
+  const previousTail = state.frames.slice(-3).map(f => f.key).join('|');
   const frames = state.frames.filter(f => f.key !== frame.key);
   frames.push(frame);
   frames.sort((a, b) => a.time - b.time || (String(a.key) < String(b.key) ? -1 : String(a.key) > String(b.key) ? 1 : 0));
   state.frames = frames.slice(-CFG.radarObservedFrames);
   state.lastGoodFrames = state.frames.slice();
   panel.dataset.fallback = 'none';
-  state.cursor = state.frames.length - 1;
+  const retained = playing ? state.frames.findIndex(f => f.key === playing.key) : -1;
+  state.cursor = retained >= 0 ? retained : Math.max(0, state.frames.length - 1);
+  state.transition = null;
   panel.dataset.observedFrames = String(state.frames.length);
   panel.dataset.loop = `observed-${state.frames.length}-of-${CFG.radarObservedFrames}`;
-  deriveHome();
+  if (previousTail !== state.frames.slice(-3).map(f => f.key).join('|')) deriveHome();
   return frame;
 }
 function restoreLastGoodFrames() {
@@ -476,12 +483,13 @@ function queueObservedKeys(keys) {
   return state.pendingRadarKeys;
 }
 async function backfillRadar() {
-  if (state.radarBackfilling || !state.pendingRadarKeys || !state.pendingRadarKeys.length) return;
+  if (state.runtime.stopped || state.radarBackfilling || !state.pendingRadarKeys || !state.pendingRadarKeys.length) return;
   state.radarBackfilling = true;
   try {
-    const queue = state.pendingRadarKeys.splice(0),
+    const queue = state.pendingRadarKeys.splice(0).reverse(),
       failed = [];
     for (const key of queue) {
+      if (state.runtime.stopped) break;
       if (state.frames.some(f => f.key === key)) continue;
       try {
         const f = await loadFieldKey(key, 'radar');
@@ -502,14 +510,14 @@ async function backfillRadar() {
     }
   } finally {
     state.radarBackfilling = false;
-    if (state.pendingRadarKeys.length && !state.radarBackfillRetryTimer) state.radarBackfillRetryTimer = setTimeout(() => {
+    if (!state.runtime.stopped && state.pendingRadarKeys.length && !state.radarBackfillRetryTimer) state.radarBackfillRetryTimer = setTimeout(() => {
       state.radarBackfillRetryTimer = null;
       backfillRadar().catch(e => state.errors.push(`radar backfill retry: ${e}`));
     }, state.runtime && state.runtime.lowPower ? 30000 : 15000);
   }
 }
 function retryRadarSoon() {
-  if (state.frames.length || state.radarRetryTimer) return;
+  if (state.runtime.stopped || state.frames.length || state.radarRetryTimer) return;
   state.radarRetryTimer = setTimeout(() => {
     state.radarRetryTimer = null;
     pollRadar({
@@ -520,7 +528,7 @@ function retryRadarSoon() {
 async function pollRadar({
   initial = false
 } = {}) {
-  if (state.radarLoading) return;
+  if (state.runtime.stopped || state.radarLoading || state.radarBackfilling) return;
   state.radarLoading = true;
   try {
     const keys = await recentKeys(CFG.radarProduct, CFG.radarObservedFrames),
@@ -545,7 +553,7 @@ async function pollRadar({
     // with a longer idle gap on low-power players, so it cannot compete with
     // the current observation or create concurrent decoder work.
     queueObservedKeys(keys);
-    if (state.pendingRadarKeys.length && !verifyMode) setTimeout(() => backfillRadar().catch(e => state.errors.push(String(e))), state.runtime && state.runtime.lowPower ? 2200 : initial ? 900 : 250);
+    if (state.pendingRadarKeys.length && !verifyMode && !state.runtime.stopped) state.radarBackfillStartTimer = setTimeout(() => backfillRadar().catch(e => state.errors.push(String(e))), state.runtime && state.runtime.lowPower ? 2200 : initial ? 900 : 250);
   } catch (e) {
     state.lastListError = e;
     state.errors.push(String(e));
@@ -576,6 +584,9 @@ function fieldMax(field, id = view().id) {
   return m === null ? null : m / 10;
 }
 async function loadSevere() {
+  if (state.runtime.stopped || state.severeLoading) return;
+  state.severeLoading = true;
+  try {
   for (const [name, product] of Object.entries(CFG.severeProducts)) {
     try {
       var _state$severe$name;
@@ -589,4 +600,5 @@ async function loadSevere() {
     }
   }
   render();
+  } finally { state.severeLoading = false; }
 }

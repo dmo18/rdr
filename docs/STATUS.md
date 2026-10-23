@@ -99,3 +99,12 @@ Enterprise v8 is the verified public production build on `main` and GitHub Pages
 - The concrete compatibility gap was `Object.fromEntries` during decoded-view construction. Legacy Yodeck Chromium can lack it, causing the radar poll to degrade with no committed frame.
 - Production retains the `Object.fromEntries`, `Promise.allSettled`, `Array.prototype.at`, and `Array.prototype.flat` compatibility shims; bounded request/decompression recovery; cache-busted runtime assets; and the invisible startup fail-safe.
 - The temporary visible on-screen diagnostic overlay was removed after the physical pass. Build `2026.09.15.1` is the clean follow-up release.
+
+## Office readability and playback — 2026.10.23.1
+
+- 24 real observations loaded in the 456×257 candidate (~46 minutes), with worker decoding and no runtime errors. Device-memory <=1 GB targets 20 frames.
+- All four scales manually inspected at native size; each captured through all 24 actual observations and the last-to-first wrap. Captures verify stable geography, larger text, current-home context, shown-frame timestamps and separate freshness.
+- At 4× CPU throttling the previous browser recreation had a 2394ms main-thread task. The final candidate had no multi-second main-thread blocks; its largest recorded acquisition/startup task was 482ms. Cached vector layers eliminate repeated large warning-path paints. Cold preparation remains measurably heavier than warm playback.
+- Regression gates cover history capacity/cursor stability, loop-boundary rotation, missing geography, non-overlap, shutdown, worker timeout/queue cap/backoff, stalled response bodies, fallback inflater recovery and no-data bootstrap.
+- Chromium 98 rendered live radar and strong-storm labels with worker decoding and zero browser/runtime errors. The missing Canvas.roundRect path is fixed with a native quadratic-curve fallback. The physical office Pi is Chromium 92; direct Pi access remains unavailable, so this is not a claim of live hardware verification.
+- Release assets share one cache-busting token. Recorded numeric fixtures/captures remain local QA artifacts, not repository content.
