@@ -221,7 +221,10 @@ function eWarmCurrentView() {
   const t = performance.now();
   eBase();
   eLines();
-  for (const f of state.frames) eRadarCanvas(f);
+  // Warm only the working set that can coexist in the byte-capped cache.
+  // Warming every historical frame evicts the frame about to be displayed.
+  const count = Math.min(state.frames.length, 3, typeof rdrRadarCapacity === 'function' ? rdrRadarCapacity() : 3);
+  for (let i = 0; i < count; i++) eRadarCanvas(state.frames[(state.cursor + i) % state.frames.length]);
   eCells();
   if (state.severe.lightning) ePeak(state.severe.lightning, view(), 70, 3);
   if (state.severe.mesh) ePeak(state.severe.mesh, view(), 25.4, 2);

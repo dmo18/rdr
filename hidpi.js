@@ -210,6 +210,9 @@ function rdrFilteredRadar(a) {
   }
   return out;
 }
+function rdrRadarCapacity() {
+  return Math.max(1, Math.floor(24 * 1024 * 1024 / (canvas.width * canvas.height * 4)));
+}
 eRadarCanvas = function (frame, def = view()) {
   var _frame$views;
   if (!frame) return null;
@@ -266,7 +269,7 @@ eRadarCanvas = function (frame, def = view()) {
   }
   x.putImageData(im, 0, 0);
   eRadarCache.set(key, c);
-  while (eRadarCache.size > Math.max(1, Math.floor(24 * 1024 * 1024 / (canvas.width * canvas.height * 4)))) eRadarCache.delete(eRadarCache.keys().next().value);
+  while (eRadarCache.size > rdrRadarCapacity()) eRadarCache.delete(eRadarCache.keys().next().value);
   return c;
 };
 eRadar = function (now = performance.now()) {
