@@ -57,7 +57,7 @@ jobs:
             await page.goto(`https://dmo18.github.io/rdr/?view=florida&qaRuntime=${Date.now()}`,{waitUntil:'domcontentloaded',timeout:120000});
             await page.waitForFunction(()=>window.__RDR__?.frames?.length>=4&&window.__RDR__?.severe?.lightning&&window.__RDR__?.severe?.mesh,{timeout:240000,polling:500});
             payload.runtime=await page.evaluate(()=>{
-              const s=window.__RDR__,cv=o=>Object.fromEntries(Object.entries(o||{}).map(([k,v])=>[k,Array.from(v)]));
+              const s=window.__RDR__,encode=v=>{let text='';const bytes=new Uint8Array(v.buffer,v.byteOffset,v.byteLength);for(let i=0;i<bytes.length;i+=8192)text+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(text)},cv=o=>Object.fromEntries(Object.entries(o||{}).map(([k,v])=>[k,encode(v)]));
               return {
                 frames:s.frames.map(f=>({key:f.key,time:new Date(f.time).toISOString(),views:cv(f.views)})),
                 severe:{
@@ -79,7 +79,7 @@ jobs:
           JS
           node .qa-capture.mjs
           rm -f .qa-capture.mjs
-          cp index.html styles.css core.js radar.js context.js app.js hidpi.js vnext.js vnext-motion.js alert-copy.js alerts.js enterprise-core.js enterprise-map.js enterprise-overlays.js enterprise-ui.js /tmp/rdr-qa/source/
+          cp index.html styles.css core.js radar.js context.js app.js background.js clarity.js hidpi.js vnext.js vnext-motion.js alert-copy.js alerts.js enterprise-core.js enterprise-map.js enterprise-overlays.js enterprise-ui.js /tmp/rdr-qa/source/
           cp -R qa /tmp/rdr-qa/source/ 2>/dev/null || true
           du -h /tmp/rdr-qa/fixture.json
 
