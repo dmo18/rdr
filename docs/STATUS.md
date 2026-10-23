@@ -108,3 +108,7 @@ Enterprise v8 is the verified public production build on `main` and GitHub Pages
 - Regression gates cover history capacity/cursor stability, loop-boundary rotation, missing geography, non-overlap, shutdown, worker timeout/queue cap/backoff, stalled response bodies, fallback inflater recovery and no-data bootstrap.
 - Chromium 98 rendered live radar and strong-storm labels with worker decoding and zero browser/runtime errors. The missing Canvas.roundRect path is fixed with a native quadratic-curve fallback. The physical office Pi is Chromium 92; direct Pi access remains unavailable, so this is not a claim of live hardware verification.
 - Release assets share one cache-busting token. Recorded numeric fixtures/captures remain local QA artifacts, not repository content.
+
+### 2026.10.23.2 working-set follow-up
+
+The public .1 release passed all four 24-frame loops with no browser/runtime errors. The broader CI exposed that a short 2fps sample mixed a cold context rebuild into warm-paint p95, and HiDPI preparation tried to warm more history images than the bounded cache could retain. Preparation now warms the current/next working set only. Warning and tropical layers retain at least one pair at HiDPI to prevent alternating eviction. Warm-paint gates retain their 16ms/33ms limits and measure 90 explicitly warmed paints; cold/startup metrics and real-loop capture remain separate. Native candidate warm p95 measured 1.3–2.9ms across the four views.

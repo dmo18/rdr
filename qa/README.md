@@ -54,3 +54,5 @@ CHROME=/path/to/chrome RDR_URL=http://127.0.0.1:8765/ RDR_OUT=/tmp/rdr-office-qa
 ```
 
 It loads 24 actual observations under 4× CPU throttling, captures all 24 frames plus the wrap on every scale, checks cursor stability, deliberately fails the worker, verifies mutex/queue release, and checks cooperative decoding with a real scan. Inspect native-size captures and the wrap frames. Also run the hang-regression page, actual older Chromium with live storms (including the `roundRect` fallback), and standard/reduced-motion playback.
+
+Warm-paint thresholds are measured from 90 explicitly warmed draws, separately from asynchronous context arrival, cold raster preparation, and actual playback cadence. The complete observed-loop verifier is the cadence/jank gate; do not substitute a short timer window (only a few samples at 2fps) for a steady-state paint measurement. HiDPI cache preparation warms only the working set that fits, not every historical image.

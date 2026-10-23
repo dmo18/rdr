@@ -83,7 +83,7 @@ Production: `https://dmo18.github.io/rdr/`
 - Up to 24 actual MRMS scans (~46 minutes at normal 2-minute cadence), played at 500 ms per observation. No synthesized radar observations.
 - New data preserves the displayed observation. Scales change only at a completed loop, with longer neighborhood/metro dwell and geography prepared before exposure.
 - One bounded background decoder, at most three queued jobs, 30-second job timeout, 60-second worker-failure backoff, and cooperative page-thread fallback yielding every ~8 ms. Legacy worker decompression runs off the page thread.
-- Radar image cache is capped at 24 MiB; warning/tropical image cache at 8 MiB (or one backing canvas if larger). Reference geography is requested at sub-pixel precision; warning geometry is retained unchanged.
+- Radar image cache is capped at 24 MiB; warning/tropical image cache at 8 MiB (or two backing canvases if larger). Reference geography is requested at sub-pixel precision; warning geometry is retained unchanged.
 - Static warning paths are cached until their source/view/backing changes. Unsupported Canvas.roundRect uses a quadratic-curve fallback on older Chromium.
 - Polling is non-overlapping and completion-scheduled, with capped exception backoff and page-hide timer/worker cleanup.
 

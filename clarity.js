@@ -72,7 +72,8 @@ function rdrVectorLayer(kind, source, draw) {
     draw(layer.x);
     cached = {source, canvas: layer.c, count: kind === 'warnings' && state.alertUi ? state.alertUi.boundaries : 0};
     rdrVectorCache.set(key, cached);
-    const cap = Math.max(1, Math.floor(8 * 1024 * 1024 / (canvas.width * canvas.height * 4)));
+    // The warning/tropical pair must coexist, including on HiDPI screens.
+    const cap = Math.max(2, Math.floor(8 * 1024 * 1024 / (canvas.width * canvas.height * 4)));
     while (rdrVectorCache.size > cap) rdrVectorCache.delete(rdrVectorCache.keys().next().value);
   }
   if (kind === 'warnings' && state.alertUi) state.alertUi.boundaries = cached.count;
