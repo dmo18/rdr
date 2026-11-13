@@ -58,7 +58,7 @@ function vCityLabels(occ) {
     ctx.font = font;
     const w = Math.ceil(ctx.measureText(name).width) + 4,
       h = 12,
-      b = ePlace(occ, w, h, [[x - w / 2, y - h / 2], [x - w / 2, y - h - 10], [x - w / 2, y + 3]]);
+      b = ePlace(occ, w, h, [[x - w / 2, y - h / 2], [x - w / 2, y - h - 10], [x - w / 2, y + 3], [x + 11, y - h / 2], [x - w - 11, y - h / 2]]);
     if (!b) continue;
     vHaloText(name, b.x + b.w / 2, b.y + b.h / 2 + .1, {
       font,

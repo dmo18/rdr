@@ -112,3 +112,10 @@ Enterprise v8 is the verified public production build on `main` and GitHub Pages
 ### 2026.10.23.2 working-set follow-up
 
 The public .1 release passed all four 24-frame loops with no browser/runtime errors. The broader CI exposed that a short 2fps sample mixed a cold context rebuild into warm-paint p95, and HiDPI preparation tried to warm more history images than the bounded cache could retain. Preparation now warms the current/next working set only. Warning and tropical layers retain at least one pair at HiDPI to prevent alternating eviction. Warm-paint gates retain their 16ms/33ms limits and measure 90 explicitly warmed paints; cold/startup metrics and real-loop capture remain separate. Native candidate warm p95 measured 1.3–2.9ms across the four views.
+
+## Map furniture collision fix, 2026.11.13.1
+
+- Label occupancy now reserves the HOME marker, the nearest-rain marker and the scale bar, so city labels, warning labels and storm callouts can no longer be drawn over them. Previously `eOcc()` started empty and HOME/scale were painted last on top of labels (FLORIDA: HOME, `100 MI` and MIAMI stacked; GULF + CARIBBEAN: MIAMI over HOME).
+- The scale bar moves to the bottom-left when HOME occupies the bottom-right corner.
+- City labels gain right/left fallback positions so a blocked label shifts instead of disappearing.
+- Verified live in Chromium at exact 456 x 257 on all four views with no browser/runtime errors; continuous, decoder, legacy-compat, legacy-bootstrap and cache-release gates pass.
