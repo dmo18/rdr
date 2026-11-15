@@ -33,7 +33,7 @@ const server = http.createServer((req, res) => {
   try { p = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch (e) { res.writeHead(400); return res.end(); }
   if (p === '/favicon.ico') { res.writeHead(204); return res.end(); }
   const file = path.join(ROOT, p);
-  if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end(); }
+  if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory() || !fs.realpathSync(file).startsWith(fs.realpathSync(ROOT) + path.sep)) { res.writeHead(404); return res.end(); }
   res.writeHead(200, { 'content-type': TYPES[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-store' });
   fs.createReadStream(file).pipe(res);
 });
@@ -58,7 +58,7 @@ async function snap(spec) {
   const st = state, saved = window.__base || (window.__base = { frames: st.frames, warnings: st.warnings });
   st.frames = spec.noFrames ? [] : saved.frames;
   st.warnings = spec.synthetic ? window.__synth : saved.warnings;
-  st.cursor = Math.min(spec.cursor, Math.max(0, st.frames.length - 1));
+  st.cursor = Math.max(0, Math.min(spec.cursor, st.frames.length - 1));
   st.transition = null;
   panel.dataset.radar = spec.degraded ? 'degraded' : 'live';
   __setNow(spec.now); __setPerf(spec.perf);

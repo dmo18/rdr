@@ -64,6 +64,12 @@ Decisions:
   default no): they remove the fallback look and need test changes.
 - PR #8 merged 2026-11-15 by owner request.
 
+- Final review of PR #9 (fresh Fable): no critical/high/medium. Fixed: home alert
+  footer now reads "AT HOME" (was "IN HOME"); pixel-freeze cursor clamp and
+  symlink containment. Left as low: if vnext.js alone fails to load, the fallback
+  render is now enterprise-ui.js (boot fail-safe fires either way, as on main);
+  `alert-overlays.yml` `labels<2` check is inert (pre-existing).
+
 Open security findings: none critical or high. Two lows listed above.
 
 ## Product target
