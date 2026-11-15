@@ -1,5 +1,26 @@
 # RDR Status
 
+## Current work (takeover, 2026-11-15)
+
+Plan: `docs/PLAN.md`. Audit: `docs/TAKEOVER.md`. Branch `ccr-c3f2d50e-scmpz2`, PR #8.
+
+| # | Task | State |
+|---|---|---|
+| 1 | CLAUDE.md | done |
+| 2 | Vendor fflate | in progress |
+| 3 | Pin CI tools, PR checks | done |
+| 4 | View capture harness | in progress |
+| 5 | Surface "loading" | next |
+
+Decisions:
+- Task 3: PR checks are a new `pr-checks.yml`, not a `pull_request` trigger on
+  `verify.yml`. That workflow's visual gates depend on captures of the deployed
+  Pages site, which on a PR would test the old version. Every workflow already
+  had `permissions: contents: read`.
+- Task 1 done in the main session (cheaper than briefing a helper).
+
+Open security findings: none open beyond the CDN item task 2 removes.
+
 ## Product target
 
 - Display: Yodeck

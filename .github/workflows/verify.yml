@@ -54,7 +54,7 @@ jobs:
       - name: Install verification dependencies
         shell: bash
         run: |
-          npm install --no-save --package-lock=false puppeteer-core >/dev/null
+          npm install --no-save --package-lock=false puppeteer-core@25.9.0 >/dev/null
           python3 -m pip install --disable-pip-version-check pillow >/dev/null
 
       - name: Create exact viewport verifier
