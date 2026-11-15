@@ -657,9 +657,6 @@ eHeader = vHeader;
 eFooter = vFooter;
 eHazardText = vHazardText;
 eAlertSummarySpec = vAlertSummary;
-eAlertSummaryBox = function () {
-  vAlertSummaryState();
-};
 render = vRender;
 vEnsureUx();
 panel.dataset.ui = V_UX_BUILD;
