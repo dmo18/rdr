@@ -41,7 +41,7 @@ function vHaloText(text, x, y, {
 }
 function vCityLabels(occ) {
   const def = view(),
-    base = def.id === 'home' ? 9 : 8.5,
+    base = 9,
     max = def.id === 'home' ? 6 : def.id === 'metro' ? 6 : def.id === 'florida' ? 7 : 6;
   let drawn = 0;
   for (const [name, lat, lon] of def.labels) {
@@ -63,8 +63,8 @@ function vCityLabels(occ) {
     vHaloText(name, b.x + b.w / 2, b.y + b.h / 2 + .1, {
       font,
       fill: 'rgba(238,246,249,.96)',
-      halo: 'rgba(0,6,10,.78)',
-      haloRadius: .72
+      halo: 'rgba(0,6,10,.9)',
+      haloRadius: 1.1
     });
     drawn++;
   }
