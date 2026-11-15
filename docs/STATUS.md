@@ -50,7 +50,10 @@ Decisions:
   NOAA `surface_obs` layer 130 (FLORIDA bbox) returned 504 Gateway Time-out
   without a CORS header, logged as a console error. Reproduced from here: 2 of 3
   requests 504 after 10 s, 1 of 3 returned 200 in 0.6 s. Upstream, not caused by
-  the change; the page fell back to layer 160 (40 stations). Re-ran once.
+  the change; the page fell back to layer 160 (40 stations). Re-ran once:
+  `vnext-qa.yml` passed; `verify.yml` failed again by waiting 180 s for surface
+  stations during the same outage window. At 02:45 UTC all five layers answered
+  200 in under 0.6 s. Next push to `main` reruns it.
 
 - Task 12: proof is `qa/pixel-freeze.mjs` (120 frozen-clock states, base
   reproduces itself, a one-shade colour change differs in 120/120). Every step
