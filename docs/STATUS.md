@@ -11,6 +11,9 @@ Plan: `docs/PLAN.md`. Audit: `docs/TAKEOVER.md`. Branch `ccr-c3f2d50e-scmpz2`, P
 | 3 | Pin CI tools, PR checks | done |
 | 4 | View capture harness | done |
 | 5 | Surface "loading" | done (no code bug) |
+| 6 | Legibility audit | done |
+| 7-8 | Legibility fixes (6 commits) | done |
+| 9 | 9 px and overlap checks in harness | done |
 
 Decisions:
 - Task 3: PR checks are a new `pr-checks.yml`, not a `pull_request` trigger on
@@ -29,7 +32,11 @@ Decisions:
   Side note: `data-surface` is one page-wide attribute, so a background prefetch
   of another view can overwrite it. Display is unaffected; noted, not changed.
 
-Open security findings: none open beyond the CDN item task 2 removes.
+- Tasks 7-8: no extra cache-token bump; 20261115.1 is already newer than main.
+- Milestone 1 security review: no critical/high; 4 lows fixed in 750d4b1.
+- Open decision: GULF footer wording "FLORIDA · N other alerts" (see LEGIBILITY.md).
+
+Open security findings: none.
 
 ## Product target
 

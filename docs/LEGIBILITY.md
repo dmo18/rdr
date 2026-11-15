@@ -30,4 +30,9 @@ Crops: `legibility-crops.png` (posted in chat; local QA artifact, not committed)
 
 ## Result
 
-Filled in after tasks 7 and 8.
+All six issues fixed in separate commits. Re-measured on live data: the
+smallest text drawn on every view is 9 px (was 6 px no-data, 8 px rail,
+scale, callouts and tags, 8.5 px city labels). `qa/view-capture.mjs` now
+fails on any string under 9 px and on any label overlapping HOME, the
+nearest-rain marker or the scale bar, sampled at six loop frames. Demonstrated:
+reverting the rail fix to 8 px fails all four views.

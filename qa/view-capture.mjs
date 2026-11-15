@@ -15,6 +15,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.resolve(process.env.RDR_OUT || path.join(ROOT, 'qa/out/view-capture'));
 const SCALE = Number(process.env.RDR_SCALE) || 1;
 const STRIP_FRAMES = 6;
+const MIN_TEXT_PX = 9; // smallest on-screen CSS px size allowed for any canvas#display fillText
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.mjs': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
@@ -55,6 +56,46 @@ function layoutProbe(w, h) {
   };
 }
 
+// Runs before page scripts: records the smallest on-screen CSS px size per string drawn on canvas#display.
+function textHook(w) {
+  const orig = CanvasRenderingContext2D.prototype.fillText;
+  window.__texts = new Map();
+  CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+    try {
+      const c = this.canvas;
+      if (c && c.id === 'display' && String(text).trim()) {
+        const m = /([\d.]+)px/.exec(this.font);
+        if (m) {
+          const px = parseFloat(m[1]) * (this.getTransform().a / (c.width / w));
+          const t = String(text), old = window.__texts.get(t);
+          if (old === undefined || px < old) window.__texts.set(t, px);
+        }
+      }
+    } catch (e) { /* never break drawing */ }
+    return orig.call(this, text, ...rest);
+  };
+}
+
+// Runs in the page after load: wraps ePlace to record placed label boxes.
+function placeHook() {
+  if (window.__placeWrapped) return typeof window.ePlace === 'function';
+  if (typeof window.ePlace !== 'function') return false;
+  const o = window.ePlace;
+  window.ePlace = function (occ, w, h, c) { const b = o(occ, w, h, c); if (b) (window.__placed || (window.__placed = [])).push(b); return b; };
+  window.__placeWrapped = true;
+  window.__placed = [];
+  return true;
+}
+// Runs in the page: placed labels seen since the last reset vs reserved furniture; then resets.
+function furnitureProbe() {
+  const placed = window.__placed || [];
+  window.__placed = [];
+  const res = eOcc();
+  const hits = [];
+  for (const b of placed) for (const o of res) if (eOverlap(o, b, 0)) hits.push(`[${Math.round(b.x)},${Math.round(b.y)},${Math.round(b.w)}x${Math.round(b.h)}]x[${Math.round(o.x)},${Math.round(o.y)},${Math.round(o.w)}x${Math.round(o.h)}]`);
+  return { n: placed.length, hits, view: view().id };
+}
+
 async function captureView(browser, base, id) {
   const reasons = [], known = [];
   const page = await browser.newPage();
@@ -62,6 +103,7 @@ async function captureView(browser, base, id) {
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text().slice(0, 140)); });
   await page.setViewport({ width: W, height: H, deviceScaleFactor: SCALE });
+  await page.evaluateOnNewDocument(textHook, W);
   try {
     await page.goto(`${base}?view=${id}`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => { const p = document.getElementById('panel'); return p && p.dataset.ready === 'true' && p.dataset.radar === 'live'; }, { timeout: 120000, polling: 250 });
@@ -73,12 +115,24 @@ async function captureView(browser, base, id) {
     const n = Math.max(info.n, STRIP_FRAMES);
     const step = Math.max(1, Math.round(n / STRIP_FRAMES)) * FRAME_MS;
     const frames = [];
+    const hooked = await page.evaluate(placeHook);
+    let placedTotal = 0;
+    const overlaps = [];
     for (let k = 0; k < STRIP_FRAMES; k++) {
+      if (hooked) await page.evaluate(() => { window.__placed = []; });
       const f = path.join(OUT, `${id}-f${k}.png`);
       await page.screenshot({ path: f });
       frames.push(f);
       await sleep(step);
+      if (hooked) {
+        const fp = await page.evaluate(furnitureProbe);
+        placedTotal += fp.n;
+        overlaps.push(...fp.hits.map(h => `frame ${k} ${h}`));
+      }
     }
+    if (!hooked) reasons.push('furniture instrumentation failed: ePlace not a global function');
+    else if (!placedTotal) reasons.push('furniture instrumentation saw no ePlace calls');
+    else if (overlaps.length) reasons.push(`label overlaps furniture (${overlaps.length}): ${overlaps.slice(0, 3).join(' ')}`);
     // One full loop (n * FRAME_MS) has elapsed across the strip captures.
     await page.screenshot({ path: path.join(OUT, `${id}.png`) });
     // Frame strip, combined in an offscreen canvas.
@@ -99,6 +153,11 @@ async function captureView(browser, base, id) {
     if (r.scroll[0] > W || r.scroll[1] > H) reasons.push(`scroll ${r.scroll.join('x')}`);
     if (r.bad.length) reasons.push(`outside viewport: ${r.bad.slice(0, 5).join(' ')}${r.bad.length > 5 ? ` (+${r.bad.length - 5})` : ''}`);
     if (!r.canvas || Math.abs(r.canvas[0] - W) > 0.5 || Math.abs(r.canvas[1] - H) > 0.5) reasons.push(`canvas css ${r.canvas ? r.canvas.join('x') : 'missing'}`);
+    const texts = await page.evaluate(() => [...window.__texts]);
+    const small = texts.filter(([, px]) => px < MIN_TEXT_PX).sort((a, b) => a[1] - b[1]);
+    for (const [t, px] of small.slice(0, 5)) reasons.push(`text ${Math.round(px * 100) / 100}px: '${t}'`);
+    if (small.length > 5) reasons.push(`(+${small.length - 5} more small strings)`);
+    if (!texts.length) reasons.push('text instrumentation saw no fillText on canvas#display');
     if (r.surface === 'loading') (KNOWN_FAILING.includes('surface') ? known : reasons).push('surface still loading');
   }
   if (errors.length) reasons.push(`errors(${errors.length}): ${[...new Set(errors)].slice(0, 3).join(' | ')}`);

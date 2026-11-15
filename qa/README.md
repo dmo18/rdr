@@ -69,6 +69,8 @@ Serves the repo on a free local port (or uses `RDR_URL` if set), opens `?view=ho
 
 Per view it prints `PASS`/`FAIL view reasons` and exits 1 on any real failure. Failures: viewport not 456 x 257, scroll size above 456 x 257, any visible element outside the viewport, `canvas#display` CSS size not 456 x 257, page or console errors, `data-surface` still `loading`. The surface check is listed in `KNOWN_FAILING` (printed as `KNOWN-FAIL surface`, exit code unaffected) until task 5 removes it.
 
+Legibility guards (every view): all `fillText` draws on `canvas#display` are recorded from page start and any string under `MIN_TEXT_PX` (9) on-screen CSS px fails as `text <N>px: '<text>'` (size = font px x canvas transform scale / canvas backing-store scale). `ePlace` is wrapped after load; at each of the 6 strip sample points the placed label boxes must not overlap the `eOcc()` furniture boxes (HOME, nearest-rain marker, scale bar; `eOverlap` padding 0), and the run fails if the wrapper saw no placements.
+
 ## Vendored fflate regression
 
 `node qa/vendor-regression.mjs` (needs a static server on 127.0.0.1:8765 and `CHROME`, default `/opt/pw-browsers/chromium-1243/chrome-linux64/chrome`; override the origin with `RDR_ORIGIN`) asserts that no root `*.js`/`*.html`/`*.css` references `jsdelivr`, that `vendor/fflate-0.8.2.min.js` matches its recorded SHA-256 (byte-identical to the npm `fflate@0.8.2` `umd/index.js`), and, with `DecompressionStream` disabled on the page and in the decoder worker, that fflate loads from the same origin, page and worker both decode, and no third-party script is requested. When `HTTPS_PROXY` is set the browser is launched with `--proxy-server`, `--proxy-bypass-list=127.0.0.1;localhost` and `--ignore-certificate-errors`.
