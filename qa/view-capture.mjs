@@ -20,10 +20,11 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.mjs': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
 async function startServer() {
   const server = http.createServer((req, res) => {
-    let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+    let p;
+    try { p = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch (e) { res.writeHead(400); return res.end('bad request'); }
     if (p.endsWith('/')) p += 'index.html';
     const file = path.join(ROOT, p);
-    if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end('not found'); }
+    if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory() || !fs.realpathSync(file).startsWith(fs.realpathSync(ROOT) + path.sep)) { res.writeHead(404); return res.end('not found'); }
     res.writeHead(200, { 'content-type': TYPES[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-store' });
     fs.createReadStream(file).pipe(res);
   });

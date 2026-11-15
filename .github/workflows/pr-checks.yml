@@ -14,20 +14,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Syntax
         run: for f in *.js qa/*.js; do node --check "$f"; done
 
       - name: Offline regression gates
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
           node qa/continuous-regression.mjs
           node qa/decoder-regression.mjs
           node qa/legacy-compat.mjs
-          RDR_RELEASE_BASE="origin/${{ github.base_ref || 'main' }}" node qa/cache-release-regression.mjs
+          RDR_RELEASE_BASE="origin/${BASE_REF:-main}" node qa/cache-release-regression.mjs
 
       - name: Legacy bootstrap gate
         shell: bash
