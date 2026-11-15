@@ -43,6 +43,12 @@ Decisions:
 - Playback: warm render p50 0.4-1.0 ms, p95 0.6-2.9 ms, main and branch alike
   (90 renders, metro and regional, two passes each). office-playback checks identical.
 
+- After merging PR #8 (2026-11-15), `verify.yml` and `vnext-qa.yml` failed on `main`:
+  NOAA `surface_obs` layer 130 (FLORIDA bbox) returned 504 Gateway Time-out
+  without a CORS header, logged as a console error. Reproduced from here: 2 of 3
+  requests 504 after 10 s, 1 of 3 returned 200 in 0.6 s. Upstream, not caused by
+  the change; the page fell back to layer 160 (40 stations). Re-ran once.
+
 Open security findings: none critical or high. Two lows listed above.
 
 ## Product target
