@@ -14,7 +14,7 @@ Plan: `docs/PLAN.md`. Audit: `docs/TAKEOVER.md`. Branch `ccr-c3f2d50e-scmpz2`, P
 | 6 | Legibility audit | done |
 | 7-8 | Legibility fixes (6 commits) | done |
 | 9 | 9 px and overlap checks in harness | done |
-| 10 | Delete 7 merged branches | done |
+| 10 | Delete 7 merged branches | blocked: owner deletes on GitHub |
 
 Decisions:
 - Task 3: PR checks are a new `pr-checks.yml`, not a `pull_request` trigger on
@@ -165,9 +165,11 @@ The public .1 release passed all four 24-frame loops with no browser/runtime err
 - City labels gain right/left fallback positions so a blocked label shifts instead of disappearing.
 - Verified live in Chromium at exact 456 x 257 on all four views with no browser/runtime errors; continuous, decoder, legacy-compat, legacy-bootstrap and cache-release gates pass.
 
-## Deleted merged branches (2026-11-15, owner approved)
+## Merged branches to delete (2026-11-15, owner approved)
 
-All were ancestors of `main`. Restore any with
+All are ancestors of `main`. Not yet deleted: this cloud session may push only to
+its working branch (GitHub returned 403). The owner deletes them on GitHub
+(repo, Branches page, trash icon). Restore any with
 `git push origin <sha>:refs/heads/<name>`.
 
 | Branch | Last commit |
