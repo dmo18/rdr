@@ -281,13 +281,18 @@ function fetchJson(url, headers = {}) {
   }, 15000, r => r.json());
 }
 let compatInflaterPromise = null;
+function fflateUrl() {
+  const tag = document.querySelector('script[src*="core.js"]'),
+    m = tag && /[?&]v=([^&#]+)/.exec(tag.getAttribute('src') || '');
+  return new URL('vendor/fflate-0.8.2.min.js' + (m ? '?v=' + m[1] : ''), location.href).href;
+}
 function loadCompatInflater() {
   if (window.fflate) return Promise.resolve(window.fflate);
   if (compatInflaterPromise) return compatInflaterPromise;
   let promise;
   promise = new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js';
+    s.src = fflateUrl();
     s.async = true;
     s.crossOrigin = 'anonymous';
     let settled = false,

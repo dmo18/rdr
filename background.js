@@ -25,7 +25,7 @@ function rdrCreateDecoder() {
     'const lon360=' + lon360.toString() + ';const clamp=' + clamp.toString() + ';const radarYield=' + radarYield.toString() + ';\n' +
     defs.map(f => f.toString()).join('\n') + '\n' +
     'async function inflate(buf,kind){if(typeof DecompressionStream==="function")return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream(kind))).arrayBuffer();' +
-    'if(!self.fflate)importScripts("https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js");return(kind==="gzip"?self.fflate.gunzipSync:self.fflate.unzlibSync)(new Uint8Array(buf)).buffer;}\n' +
+    'if(!self.fflate)importScripts(' + JSON.stringify(fflateUrl()) + ');return(kind==="gzip"?self.fflate.gunzipSync:self.fflate.unzlibSync)(new Uint8Array(buf)).buffer;}\n' +
     'self.onmessage=async function(e){const j=e.data;try{const raw=await inflate(j.bytes,"gzip"),meta=parseGrib(raw),views=await decodePngToViews(meta,j.kind);delete meta.png;' +
     'self.postMessage({id:j.id,frame:{key:j.key,time:meta.ref,views:views,meta:meta}},Object.keys(views).map(k=>views[k].buffer));}catch(error){self.postMessage({id:j.id,error:String(error)});}};';
   rdrDecode.url = URL.createObjectURL(new Blob([source], {type: 'application/javascript'}));

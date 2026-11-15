@@ -46,7 +46,7 @@ runs only on pushes to `main` or by hand, never on pull requests.
 
 ## Known issues and risks
 
-- Runtime loads `fflate@0.8.2` from cdn.jsdelivr.net (fallback decompression
+- (Fixed 2026-11-15, task 2) Runtime loaded `fflate@0.8.2` from cdn.jsdelivr.net (fallback decompression
   only) with no integrity check. A CDN compromise would run code on the display.
 - CI installs `puppeteer-core` unpinned in 7 of 8 browser workflows.
 - No checks run on pull requests, so a change is only tested after it reaches `main`.
