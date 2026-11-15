@@ -438,36 +438,3 @@ function eHeader() {
   ctx.lineTo(CFG.width, E_MAP_TOP - .5);
   ctx.stroke();
 }
-render = function (now = performance.now()) {
-  const t0 = performance.now();
-  ctx.fillStyle = '#04131b';
-  ctx.fillRect(0, 0, CFG.width, CFG.height);
-  let alertBox = null;
-  if (state.frames.length) {
-    ctx.drawImage(eBase(), 0, 0);
-    eRadar(now);
-    ctx.drawImage(eLines(), 0, 0);
-    eDrawTropics();
-    eDrawWarnings();
-    eNearestRain();
-    const occ = eOcc();
-    alertBox = eAlertSummarySpec();
-    if (alertBox) occ.push({
-      x: alertBox.x,
-      y: alertBox.y,
-      w: alertBox.w,
-      h: alertBox.h
-    });
-    eSevereSymbols(occ);
-    eStormFocus(occ);
-    eWarningLabels(occ);
-    eCityLabels(occ);
-    eHomeMarker();
-    eScale();
-    eVignette();
-  } else renderUnavailable();
-  eHeader();
-  eFooter();
-  if (alertBox) eAlertSummaryBox(alertBox);else eAlertSummaryBox(null);
-  ePerf(performance.now() - t0);
-};
