@@ -223,7 +223,7 @@ to glance at the real office screen afterwards (the Pi cannot be checked from he
   are truly dead (replaced by `vnext.js`) and which are still called by the live
   layer. Produce a step-by-step removal order where each step is separately
   checkable, or recommend not doing it.
-- **Files:** `docs/RENDER-CLEANUP.md` (new). No code changes.
+- **Files:** `docs/DEADCODE.md` (new). No code changes.
 - **Depends on:** task 9; owner approval (question 3).
 - **Decisions made:** behaviour and pixels must not change; legacy boot
   fail-safe stays; workflows that load old layers must be accounted for.
