@@ -58,7 +58,7 @@ function eOcc() {
     occ.push({ x: b.x - 4.5, y: b.y - 4.5, w: 9, h: 9 });
   }
   const sc = eScaleGeom(def);
-  occ.push({ x: sc.x - 3, y: sc.y - 12, w: sc.px + 6, h: 16 });
+  occ.push({ x: sc.x - 3, y: sc.y - 13, w: sc.px + 6, h: 17 });
   return occ;
 }
 function ePlace(occ, w, h, candidates) {
@@ -210,7 +210,7 @@ function eScaleGeom(def = view()) {
     y = E_MAP_BOTTOM - 7,
     right = CFG.width - 9 - px,
     home = eHomeBox(def),
-    box = { x: right - 3, y: y - 12, w: px + 6, h: 16 },
+    box = { x: right - 3, y: y - 13, w: px + 6, h: 17 },
     x = home && eOverlap(home, box, 2) ? 9 : right;
   return { x, y, px };
 }

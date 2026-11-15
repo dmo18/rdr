@@ -36,7 +36,13 @@ Decisions:
 - Milestone 1 security review: no critical/high; 4 lows fixed in 750d4b1.
 - Open decision: GULF footer wording "FLORIDA · N other alerts" (see LEGIBILITY.md).
 
-Open security findings: none.
+- Milestone 2 review: no critical/high/medium. Scale-box headroom low fixed.
+  Not fixed (low, cosmetic or local-only): halo offsets on one diagonal only
+  (`vnext.js` vHaloText); `RDR_OUT` can point harness output outside `qa/out`.
+- Playback: warm render p50 0.4-1.0 ms, p95 0.6-2.9 ms, main and branch alike
+  (90 renders, metro and regional, two passes each). office-playback checks identical.
+
+Open security findings: none critical or high. Two lows listed above.
 
 ## Product target
 
