@@ -66,6 +66,6 @@ function renderUnavailable() {
   ctx.font = '900 13px Arial,Helvetica,sans-serif';
   ctx.fillText('LIVE RADAR UNAVAILABLE', CFG.width / 2, 116);
   ctx.fillStyle = '#8ca4ae';
-  ctx.font = '700 6px Arial,Helvetica,sans-serif';
+  ctx.font = '700 9px Arial,Helvetica,sans-serif';
   ctx.fillText('WAITING FOR CURRENT NOAA MRMS DATA', CFG.width / 2, 133);
 }
