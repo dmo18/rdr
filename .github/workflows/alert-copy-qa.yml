@@ -2,7 +2,7 @@ name: Verify explicit alert copy
 
 on:
   push:
-    branches: ['qa/alert-copy-v11', main]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

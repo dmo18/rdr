@@ -14,6 +14,7 @@ Plan: `docs/PLAN.md`. Audit: `docs/TAKEOVER.md`. Branch `ccr-c3f2d50e-scmpz2`, P
 | 6 | Legibility audit | done |
 | 7-8 | Legibility fixes (6 commits) | done |
 | 9 | 9 px and overlap checks in harness | done |
+| 10 | Delete 7 merged branches | done |
 
 Decisions:
 - Task 3: PR checks are a new `pr-checks.yml`, not a `pull_request` trigger on
@@ -163,3 +164,18 @@ The public .1 release passed all four 24-frame loops with no browser/runtime err
 - The scale bar moves to the bottom-left when HOME occupies the bottom-right corner.
 - City labels gain right/left fallback positions so a blocked label shifts instead of disappearing.
 - Verified live in Chromium at exact 456 x 257 on all four views with no browser/runtime errors; continuous, decoder, legacy-compat, legacy-bootstrap and cache-release gates pass.
+
+## Deleted merged branches (2026-11-15, owner approved)
+
+All were ancestors of `main`. Restore any with
+`git push origin <sha>:refs/heads/<name>`.
+
+| Branch | Last commit |
+|---|---|
+| `feature/readable-continuous-radar` | `10038d58bb89fcd5e9a709b6a4f6ad5a2762b329` |
+| `fix/yodeck-legacy-bootstrap` | `3b8822ee8b4ccb79aa868731091f7e12e817075f` |
+| `fix/yodeck-physical-diagnostics` | `0a05bdd5b8dfd6b2a1bcde02e221977f45b62029` |
+| `fix/yodeck-radar-recovery-v2` | `1c9eca13af35cf6d1848ed9f6db5fe685c68a1a2` |
+| `qa/alert-copy-v11` | `304de61e59668c1f9e89dda90e91f42787394c86` |
+| `qa/hidpi-v9` | `dc7f082030c67b347ce200026e6247ad65d5d3b5` |
+| `qa/vnext-v10` | `94f63f56a86e503057fd695eb5c14892723ec3af` |

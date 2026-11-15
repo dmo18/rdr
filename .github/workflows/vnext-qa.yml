@@ -2,7 +2,7 @@ name: Verify RDR vNext UX
 
 on:
   push:
-    branches: ['qa/vnext-v10', main]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

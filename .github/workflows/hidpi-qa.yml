@@ -2,7 +2,7 @@ name: Verify adaptive HiDPI RDR
 
 on:
   push:
-    branches: ['qa/hidpi-v9', main]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
