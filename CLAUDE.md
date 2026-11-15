@@ -13,7 +13,9 @@ No server, secrets, accounts or personal data. `main` is the live screen.
 - Do not change `data-ui="vnext-2026.10.23.2"` or `data-copy="alert-copy-2026.10.23.2"`
   unless the workflows that pin them change too.
 - No runtime code from third-party hosts. Vendored libraries live in `vendor/`.
-- Never merge to `main` without the owner's explicit OK.
+- Merging to `main` puts changes on the live screen. The owner gave standing
+  approval (2026-11-15) for Claude to merge its own PRs once PR checks are green,
+  there are no conflicts, and no critical/high review findings are open.
 
 ## Run
 
