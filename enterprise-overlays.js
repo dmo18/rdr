@@ -219,7 +219,7 @@ function eScale() {
     { x, y, px } = eScaleGeom(def);
   ctx.save();
   ctx.strokeStyle = 'rgba(209,224,230,.62)';
-  ctx.fillStyle = 'rgba(209,224,230,.72)';
+  ctx.fillStyle = 'rgba(209,224,230,.88)';
   ctx.lineWidth = .7;
   ctx.beginPath();
   ctx.moveTo(x, y);
@@ -229,7 +229,7 @@ function eScale() {
   ctx.moveTo(x + px, y - 2.5);
   ctx.lineTo(x + px, y + 2.5);
   ctx.stroke();
-  ctx.font = '700 8px Arial,Helvetica,sans-serif';
+  ctx.font = '700 9px Arial,Helvetica,sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
   ctx.fillText(`${def.scaleMi} MI`, x + px / 2, y - 2);
