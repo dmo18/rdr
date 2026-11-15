@@ -40,7 +40,7 @@ vFooter = function () {
   ux.alertFooterHeadline = '';
   if (sum) {
     ux.alertFooterHeadline = `${sum.local ? 'HOME · ' : ''}${sum.typedLabel} · ${rdrAlertDisplayName(sum.meta)}`;
-    detail = phase === 0 ? ux.alertFooterHeadline : [sum.place || 'IN VIEW', sum.expires ? `Until ${sum.expires}` : '', sum.otherCount ? `${sum.otherCount} other alerts` : ''].filter(Boolean).join(' · ');
+    detail = phase === 0 ? ux.alertFooterHeadline : [sum.place === 'HOME' ? 'AT HOME' : sum.place ? `IN ${sum.place}` : 'IN VIEW', sum.expires ? `Until ${sum.expires}` : '', sum.otherCount ? `${sum.otherCount} other alerts` : ''].filter(Boolean).join(' · ');
   }
   ux.alertFooterText = detail;
   rdrText(detail, 8, 235, 10, hazard.accent || '#cee5ee', 440);

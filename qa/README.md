@@ -74,3 +74,7 @@ Legibility guards (every view): all `fillText` draws on `canvas#display` are rec
 ## Vendored fflate regression
 
 `node qa/vendor-regression.mjs` (needs a static server on 127.0.0.1:8765 and `CHROME`, default `/opt/pw-browsers/chromium-1243/chrome-linux64/chrome`; override the origin with `RDR_ORIGIN`) asserts that no root `*.js`/`*.html`/`*.css` references `jsdelivr`, that `vendor/fflate-0.8.2.min.js` matches its recorded SHA-256 (byte-identical to the npm `fflate@0.8.2` `umd/index.js`), and, with `DecompressionStream` disabled on the page and in the decoder worker, that fflate loads from the same origin, page and worker both decode, and no third-party script is requested. When `HTTPS_PROXY` is set the browser is launched with `--proxy-server`, `--proxy-bypass-list=127.0.0.1;localhost` and `--ignore-certificate-errors`.
+
+## Pixel proof for no-visible-change refactors
+
+`node qa/pixel-freeze.mjs render <fixture.json> <outDir>` renders `qa/replay.html` for all four views at 1x and 2x, 15 states each, with a frozen clock and fixed randomness, and records SHA-256 hashes of the canvas pixels. `node qa/pixel-freeze.mjs compare <dirA> <dirB>` exits 1 on any difference. Set `RDR_ROOT` to render another checkout (for example a `git worktree` of the base commit). Fixtures come from `qa/office-playback.cjs` (`fixture-compact.json`) and stay outside the repo.

@@ -15,6 +15,9 @@ Plan: `docs/PLAN.md`. Audit: `docs/TAKEOVER.md`. Branch `ccr-c3f2d50e-scmpz2`, P
 | 7-8 | Legibility fixes (6 commits) | done |
 | 9 | 9 px and overlap checks in harness | done |
 | 10 | Delete 7 merged branches | blocked: owner deletes on GitHub |
+| 11 | Dead-code design (`docs/DEADCODE.md`) | done |
+| 12 | Dead-code removal steps 1-5 | done, 369 lines, pixel-identical |
+| 13 | Footer "IN FLORIDA · ..." wording | done |
 
 Decisions:
 - Task 3: PR checks are a new `pr-checks.yml`, not a `pull_request` trigger on
@@ -42,6 +45,30 @@ Decisions:
   (`vnext.js` vHaloText); `RDR_OUT` can point harness output outside `qa/out`.
 - Playback: warm render p50 0.4-1.0 ms, p95 0.6-2.9 ms, main and branch alike
   (90 renders, metro and regional, two passes each). office-playback checks identical.
+
+- After merging PR #8 (2026-11-15), `verify.yml` and `vnext-qa.yml` failed on `main`:
+  NOAA `surface_obs` layer 130 (FLORIDA bbox) returned 504 Gateway Time-out
+  without a CORS header, logged as a console error. Reproduced from here: 2 of 3
+  requests 504 after 10 s, 1 of 3 returned 200 in 0.6 s. Upstream, not caused by
+  the change; the page fell back to layer 160 (40 stations). Re-ran once:
+  `vnext-qa.yml` passed; `verify.yml` failed again by waiting 180 s for surface
+  stations during the same outage window. At 02:45 UTC all five layers answered
+  200 in under 0.6 s. Next push to `main` reruns it.
+
+- Task 12: proof is `qa/pixel-freeze.mjs` (120 frozen-clock states, base
+  reproduces itself, a one-shade colour change differs in 120/120). Every step
+  was identical to the base. Coverage: 24 frames, 271 recorded alerts plus
+  synthetic SVR/ADV/TOR, lightning symbols on GULF only; motion arrows were 0
+  in the fixture, so the storm-motion arrow path is not pixel-proven (no step
+  touched vnext-motion.js). Steps 6 and 7 not done (owner decisions A and B,
+  default no): they remove the fallback look and need test changes.
+- PR #8 merged 2026-11-15 by owner request.
+
+- Final review of PR #9 (fresh Fable): no critical/high/medium. Fixed: home alert
+  footer now reads "AT HOME" (was "IN HOME"); pixel-freeze cursor clamp and
+  symlink containment. Left as low: if vnext.js alone fails to load, the fallback
+  render is now enterprise-ui.js (boot fail-safe fires either way, as on main);
+  `alert-overlays.yml` `labels<2` check is inert (pre-existing).
 
 Open security findings: none critical or high. Two lows listed above.
 
