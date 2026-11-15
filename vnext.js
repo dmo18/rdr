@@ -72,22 +72,6 @@ function vCityLabels(occ) {
   ux.cityLabels = drawn;
   ux.cityLabelBoxes = 0;
 }
-function vLightningAtHome() {
-  var _field$views;
-  const field = state.severe.lightning,
-    a = field === null || field === void 0 || (_field$views = field.views) === null || _field$views === void 0 ? void 0 : _field$views.home;
-  if (!a) return null;
-  const def = CFG.views[0],
-    p = mapXY(CFG.home.lat, CFG.home.lon, def),
-    cx = Math.round(p.x),
-    cy = Math.round(p.y);
-  let best = null;
-  for (let y = Math.max(0, cy - 4); y <= Math.min(CFG.height - 1, cy + 4); y++) for (let x = Math.max(0, cx - 4); x <= Math.min(CFG.width - 1, cx + 4); x++) {
-    const q = a[y * CFG.width + x];
-    if (q !== MISSING && (best === null || q > best)) best = q;
-  }
-  return best === null ? null : best / 10;
-}
 function vNearestLightning(threshold = 30) {
   const field = state.severe.lightning;
   if (!field) return null;

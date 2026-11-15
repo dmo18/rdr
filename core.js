@@ -196,20 +196,6 @@ function freshness() {
   const a = ageMs();
   return a < 270000 ? 'live' : a < 480000 ? 'delayed' : 'stale';
 }
-function compactTime(d) {
-  return d && Number.isFinite(d.getTime()) ? d.toLocaleTimeString([], {
-    hour: 'numeric',
-    minute: '2-digit'
-  }).replace(' ', '').replace('AM', 'a').replace('PM', 'p') : '--:--';
-}
-function utcTime(d) {
-  return d && Number.isFinite(d.getTime()) ? d.toLocaleTimeString('en-US', {
-    timeZone: 'UTC',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  }) + 'Z' : '--:--Z';
-}
 /* Presentation only: MRMS timestamps remain source UTC Date values. Intl uses
  * the Olson zone when available; old signage Chromium gets a DST-rule fallback. */
 function radarTimeET(d) {
@@ -239,11 +225,6 @@ function radarEtaTime(eta, observedTime) {
 }
 function dayStamp(d = new Date()) {
   return d.toISOString().slice(0, 10).replace(/-/g, '');
-}
-function keyTime(key) {
-  const m = key.match(/(\d{8})-(\d{6})/);
-  if (!m) return null;
-  return new Date(Date.UTC(+m[1].slice(0, 4), +m[1].slice(4, 6) - 1, +m[1].slice(6, 8), +m[2].slice(0, 2), +m[2].slice(2, 4), +m[2].slice(4, 6)));
 }
 function requestTimeout(ms) {
   const qa = Number(state.runtime && state.runtime.requestTimeoutMs);
