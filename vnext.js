@@ -397,7 +397,7 @@ function vWarningLabels(occ) {
     if (!meta.isWarning || meta.isAdvisory || meta.isWatch) continue;
     const p = ePoint(c.lat, c.lon);
     if (!eInMap(p.y, 8)) continue;
-    const font = '900 8px Arial,Helvetica,sans-serif';
+    const font = '900 9px Arial,Helvetica,sans-serif';
     ctx.font = font;
     const w = Math.ceil(ctx.measureText(meta.code).width) + 4,
       h = 12,
