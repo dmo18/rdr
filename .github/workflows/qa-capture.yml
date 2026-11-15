@@ -20,7 +20,7 @@ jobs:
 
       - name: Install capture dependency
         shell: bash
-        run: npm install --no-save --package-lock=false puppeteer-core >/dev/null
+        run: npm install --no-save --package-lock=false puppeteer-core@25.9.0 >/dev/null
 
       - name: Capture replayable live state
         shell: bash

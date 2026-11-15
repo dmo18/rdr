@@ -41,8 +41,25 @@ function eNearestRain() {
   ctx.fill();
   ctx.restore();
 }
+// Fixed map furniture that labels and callouts must never cover.
+function eHomeBox(def = view()) {
+  if (!within(CFG.home.lat, CFG.home.lon, def)) return null;
+  const p = ePoint(CFG.home.lat, CFG.home.lon, def);
+  return { x: p.x - 9, y: p.y - 9, w: 18, h: 18 };
+}
 function eOcc() {
-  return [];
+  const def = view(),
+    occ = [],
+    home = eHomeBox(def),
+    n = state.home && state.home.nearest;
+  if (home) occ.push(home);
+  if (n && ['home', 'metro'].includes(def.id) && within(n.lat, n.lon, def)) {
+    const b = ePoint(n.lat, n.lon, def);
+    occ.push({ x: b.x - 4.5, y: b.y - 4.5, w: 9, h: 9 });
+  }
+  const sc = eScaleGeom(def);
+  occ.push({ x: sc.x - 3, y: sc.y - 13, w: sc.px + 6, h: 17 });
+  return occ;
 }
 function ePlace(occ, w, h, candidates) {
   for (const [x0, y0] of candidates) {
@@ -185,16 +202,24 @@ function eWarningLabels(occ) {
     ctx.fillText(code, b.x + w / 2, b.y + h / 2 + .1);
   }
 }
-function eScale() {
-  const def = view(),
-    lat = (def.bbox[1] + def.bbox[3]) / 2,
+// Scale bar sits bottom-right unless HOME occupies that corner, then bottom-left.
+function eScaleGeom(def = view()) {
+  const lat = (def.bbox[1] + def.bbox[3]) / 2,
     widthMiles = (def.bbox[2] - def.bbox[0]) * 69 * Math.cos(lat * Math.PI / 180),
     px = clamp(def.scaleMi / widthMiles * CFG.width, 29, 79),
-    x = CFG.width - 9 - px,
-    y = E_MAP_BOTTOM - 7;
+    y = E_MAP_BOTTOM - 7,
+    right = CFG.width - 9 - px,
+    home = eHomeBox(def),
+    box = { x: right - 3, y: y - 13, w: px + 6, h: 17 },
+    x = home && eOverlap(home, box, 2) ? 9 : right;
+  return { x, y, px };
+}
+function eScale() {
+  const def = view(),
+    { x, y, px } = eScaleGeom(def);
   ctx.save();
   ctx.strokeStyle = 'rgba(209,224,230,.62)';
-  ctx.fillStyle = 'rgba(209,224,230,.72)';
+  ctx.fillStyle = 'rgba(209,224,230,.88)';
   ctx.lineWidth = .7;
   ctx.beginPath();
   ctx.moveTo(x, y);
@@ -204,7 +229,7 @@ function eScale() {
   ctx.moveTo(x + px, y - 2.5);
   ctx.lineTo(x + px, y + 2.5);
   ctx.stroke();
-  ctx.font = '700 8px Arial,Helvetica,sans-serif';
+  ctx.font = '700 9px Arial,Helvetica,sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
   ctx.fillText(`${def.scaleMi} MI`, x + px / 2, y - 2);

@@ -1,0 +1,43 @@
+name: PR checks
+
+# Runs the offline regression gates before a change reaches main (the live screen).
+# Uses pull_request, never pull_request_target, so PR code gets no secrets.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Syntax
+        run: for f in *.js qa/*.js; do node --check "$f"; done
+
+      - name: Offline regression gates
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          node qa/continuous-regression.mjs
+          node qa/decoder-regression.mjs
+          node qa/legacy-compat.mjs
+          RDR_RELEASE_BASE="origin/${BASE_REF:-main}" node qa/cache-release-regression.mjs
+
+      - name: Legacy bootstrap gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --package-lock=false puppeteer-core@25.9.0 >/dev/null
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/rdr-http.log 2>&1 &
+          sleep 1
+          export CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          node qa/legacy-bootstrap.mjs

@@ -41,7 +41,7 @@ function vHaloText(text, x, y, {
 }
 function vCityLabels(occ) {
   const def = view(),
-    base = def.id === 'home' ? 9 : 8.5,
+    base = 9,
     max = def.id === 'home' ? 6 : def.id === 'metro' ? 6 : def.id === 'florida' ? 7 : 6;
   let drawn = 0;
   for (const [name, lat, lon] of def.labels) {
@@ -58,13 +58,13 @@ function vCityLabels(occ) {
     ctx.font = font;
     const w = Math.ceil(ctx.measureText(name).width) + 4,
       h = 12,
-      b = ePlace(occ, w, h, [[x - w / 2, y - h / 2], [x - w / 2, y - h - 10], [x - w / 2, y + 3]]);
+      b = ePlace(occ, w, h, [[x - w / 2, y - h / 2], [x - w / 2, y - h - 10], [x - w / 2, y + 3], [x + 11, y - h / 2], [x - w - 11, y - h / 2]]);
     if (!b) continue;
     vHaloText(name, b.x + b.w / 2, b.y + b.h / 2 + .1, {
       font,
       fill: 'rgba(238,246,249,.96)',
-      halo: 'rgba(0,6,10,.78)',
-      haloRadius: .72
+      halo: 'rgba(0,6,10,.9)',
+      haloRadius: 1.1
     });
     drawn++;
   }
@@ -397,7 +397,7 @@ function vWarningLabels(occ) {
     if (!meta.isWarning || meta.isAdvisory || meta.isWatch) continue;
     const p = ePoint(c.lat, c.lon);
     if (!eInMap(p.y, 8)) continue;
-    const font = '900 8px Arial,Helvetica,sans-serif';
+    const font = '900 9px Arial,Helvetica,sans-serif';
     ctx.font = font;
     const w = Math.ceil(ctx.measureText(meta.code).width) + 4,
       h = 12,

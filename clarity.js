@@ -46,8 +46,8 @@ vFooter = function () {
   rdrText(detail, 8, 235, 10, hazard.accent || '#cee5ee', 440);
   const first = frames.length ? frames[0].time : null, last = frames.length ? frames[frames.length - 1].time : null;
   const span = first && last ? Math.round((last - first) / 60000) : 0;
-  rdrText(`${span} min history`, 8, 250, 8, '#a4c9d8', 104);
-  rdrText(`${rdrTime(first)}–${rdrTime(last)} ET`, 449, 250, 8, '#a4c9d8', 165, 'right');
+  rdrText(`${span} min history`, 8, 250, 9, '#a4c9d8', 104);
+  rdrText(`${rdrTime(first)}–${rdrTime(last)} ET`, 449, 250, 9, '#a4c9d8', 165, 'right');
   const x0 = 116, width = 155, n = frames.length;
   ctx.fillStyle = '#315364'; ctx.fillRect(x0, 249, width, 2);
   if (n) {ctx.fillStyle = '#7fe1ff';ctx.fillRect(x0, 249, n > 1 ? width * state.cursor / (n - 1) : width, 2);}

@@ -1,5 +1,50 @@
 # RDR Status
 
+## Current work (takeover, 2026-11-15)
+
+Plan: `docs/PLAN.md`. Audit: `docs/TAKEOVER.md`. Branch `ccr-c3f2d50e-scmpz2`, PR #8.
+
+| # | Task | State |
+|---|---|---|
+| 1 | CLAUDE.md | done |
+| 2 | Vendor fflate | done |
+| 3 | Pin CI tools, PR checks | done |
+| 4 | View capture harness | done |
+| 5 | Surface "loading" | done (no code bug) |
+| 6 | Legibility audit | done |
+| 7-8 | Legibility fixes (6 commits) | done |
+| 9 | 9 px and overlap checks in harness | done |
+| 10 | Delete 7 merged branches | blocked: owner deletes on GitHub |
+
+Decisions:
+- Task 3: PR checks are a new `pr-checks.yml`, not a `pull_request` trigger on
+  `verify.yml`. That workflow's visual gates depend on captures of the deployed
+  Pages site, which on a PR would test the old version. Every workflow already
+  had `permissions: contents: read`.
+- Task 1 done in the main session (cheaper than briefing a helper).
+- Task 2: fflate 0.8.2 vendored in `vendor/`, SHA-256 pinned in
+  `qa/vendor-regression.mjs`. The blob worker gets an absolute same-origin URL.
+- Task 5 diagnosis: the surface query (NWS `surface_obs` layers 110-160) answers
+  in 0.2-0.4 s per layer today, and `qa/view-capture.mjs` reached a non-loading
+  `data-surface` on all 4 views in 5 consecutive runs. The 2026-11-13 "loading"
+  readings were a slow upstream at that moment, captured about 9 s after load.
+  `fetchJson` has a 15 s timeout, so the state cannot stick; it ends `live`,
+  `empty` or `unavailable`. No runtime change. The harness check is now strict.
+  Side note: `data-surface` is one page-wide attribute, so a background prefetch
+  of another view can overwrite it. Display is unaffected; noted, not changed.
+
+- Tasks 7-8: no extra cache-token bump; 20261115.1 is already newer than main.
+- Milestone 1 security review: no critical/high; 4 lows fixed in 750d4b1.
+- Open decision: GULF footer wording "FLORIDA · N other alerts" (see LEGIBILITY.md).
+
+- Milestone 2 review: no critical/high/medium. Scale-box headroom low fixed.
+  Not fixed (low, cosmetic or local-only): halo offsets on one diagonal only
+  (`vnext.js` vHaloText); `RDR_OUT` can point harness output outside `qa/out`.
+- Playback: warm render p50 0.4-1.0 ms, p95 0.6-2.9 ms, main and branch alike
+  (90 renders, metro and regional, two passes each). office-playback checks identical.
+
+Open security findings: none critical or high. Two lows listed above.
+
 ## Product target
 
 - Display: Yodeck
@@ -112,3 +157,27 @@ Enterprise v8 is the verified public production build on `main` and GitHub Pages
 ### 2026.10.23.2 working-set follow-up
 
 The public .1 release passed all four 24-frame loops with no browser/runtime errors. The broader CI exposed that a short 2fps sample mixed a cold context rebuild into warm-paint p95, and HiDPI preparation tried to warm more history images than the bounded cache could retain. Preparation now warms the current/next working set only. Warning and tropical layers retain at least one pair at HiDPI to prevent alternating eviction. Warm-paint gates retain their 16ms/33ms limits and measure 90 explicitly warmed paints; cold/startup metrics and real-loop capture remain separate. Native candidate warm p95 measured 1.3–2.9ms across the four views.
+
+## Map furniture collision fix, 2026.11.13.1
+
+- Label occupancy now reserves the HOME marker, the nearest-rain marker and the scale bar, so city labels, warning labels and storm callouts can no longer be drawn over them. Previously `eOcc()` started empty and HOME/scale were painted last on top of labels (FLORIDA: HOME, `100 MI` and MIAMI stacked; GULF + CARIBBEAN: MIAMI over HOME).
+- The scale bar moves to the bottom-left when HOME occupies the bottom-right corner.
+- City labels gain right/left fallback positions so a blocked label shifts instead of disappearing.
+- Verified live in Chromium at exact 456 x 257 on all four views with no browser/runtime errors; continuous, decoder, legacy-compat, legacy-bootstrap and cache-release gates pass.
+
+## Merged branches to delete (2026-11-15, owner approved)
+
+All are ancestors of `main`. Not yet deleted: this cloud session may push only to
+its working branch (GitHub returned 403). The owner deletes them on GitHub
+(repo, Branches page, trash icon). Restore any with
+`git push origin <sha>:refs/heads/<name>`.
+
+| Branch | Last commit |
+|---|---|
+| `feature/readable-continuous-radar` | `10038d58bb89fcd5e9a709b6a4f6ad5a2762b329` |
+| `fix/yodeck-legacy-bootstrap` | `3b8822ee8b4ccb79aa868731091f7e12e817075f` |
+| `fix/yodeck-physical-diagnostics` | `0a05bdd5b8dfd6b2a1bcde02e221977f45b62029` |
+| `fix/yodeck-radar-recovery-v2` | `1c9eca13af35cf6d1848ed9f6db5fe685c68a1a2` |
+| `qa/alert-copy-v11` | `304de61e59668c1f9e89dda90e91f42787394c86` |
+| `qa/hidpi-v9` | `dc7f082030c67b347ce200026e6247ad65d5d3b5` |
+| `qa/vnext-v10` | `94f63f56a86e503057fd695eb5c14892723ec3af` |

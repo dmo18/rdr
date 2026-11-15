@@ -104,7 +104,7 @@ vStormFocus = function (occ) {
     ctx.arc(c.x, c.y, 3.7, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
-    ctx.font = '800 8px Arial,Helvetica,sans-serif';
+    ctx.font = '800 9px Arial,Helvetica,sans-serif';
     const w = Math.ceil(ctx.measureText(label).width) + 7,
       h = 12,
       b = ePlace(occ, w, h, [[c.x + 6, c.y - 11], [c.x + 6, c.y + 3], [c.x - w - 6, c.y - 11]]);
@@ -119,7 +119,7 @@ vStormFocus = function (occ) {
     ctx.stroke();
     ctx.restore();
     vHaloText(label, b.x + w / 2, b.y + h / 2, {
-      font: '800 8px Arial,Helvetica,sans-serif',
+      font: '800 9px Arial,Helvetica,sans-serif',
       fill: '#f5f8f9',
       halo: 'rgba(0,5,8,.72)',
       haloRadius: .55
