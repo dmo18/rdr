@@ -7,10 +7,10 @@ Plan: `docs/PLAN.md`. Audit: `docs/TAKEOVER.md`. Branch `ccr-c3f2d50e-scmpz2`, P
 | # | Task | State |
 |---|---|---|
 | 1 | CLAUDE.md | done |
-| 2 | Vendor fflate | in progress |
+| 2 | Vendor fflate | done |
 | 3 | Pin CI tools, PR checks | done |
-| 4 | View capture harness | in progress |
-| 5 | Surface "loading" | next |
+| 4 | View capture harness | done |
+| 5 | Surface "loading" | done (no code bug) |
 
 Decisions:
 - Task 3: PR checks are a new `pr-checks.yml`, not a `pull_request` trigger on
@@ -18,6 +18,16 @@ Decisions:
   Pages site, which on a PR would test the old version. Every workflow already
   had `permissions: contents: read`.
 - Task 1 done in the main session (cheaper than briefing a helper).
+- Task 2: fflate 0.8.2 vendored in `vendor/`, SHA-256 pinned in
+  `qa/vendor-regression.mjs`. The blob worker gets an absolute same-origin URL.
+- Task 5 diagnosis: the surface query (NWS `surface_obs` layers 110-160) answers
+  in 0.2-0.4 s per layer today, and `qa/view-capture.mjs` reached a non-loading
+  `data-surface` on all 4 views in 5 consecutive runs. The 2026-11-13 "loading"
+  readings were a slow upstream at that moment, captured about 9 s after load.
+  `fetchJson` has a 15 s timeout, so the state cannot stick; it ends `live`,
+  `empty` or `unavailable`. No runtime change. The harness check is now strict.
+  Side note: `data-surface` is one page-wide attribute, so a background prefetch
+  of another view can overwrite it. Display is unaffected; noted, not changed.
 
 Open security findings: none open beyond the CDN item task 2 removes.
 
